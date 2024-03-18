@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 clap = {version= "4.5.3", features=["derive"]}
 reqwest = "0.11.26"
+url = "2.5.0"
