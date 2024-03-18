@@ -2,7 +2,11 @@ mod cli;
 mod config;
 mod defaults;
 
-use std::{io::Write, os::unix::fs::PermissionsExt, process::Command};
+use std::{
+    io::Write,
+    os::unix::fs::PermissionsExt,
+    process::{Command, Stdio},
+};
 
 use config::RegistryConfig;
 use tempfile::NamedTempFile;
@@ -116,9 +120,9 @@ async fn main() -> anyhow::Result<()> {
 
                 std::fs::set_permissions(file.path(), permissions).ok();
 
-                let output = Command::new(file.path()).output()?;
+                let mut command = Command::new(file.path()).stdout(Stdio::inherit()).spawn()?;
 
-                print!("Script output: {}", String::from_utf8_lossy(&output.stdout));
+                command.wait().ok();
             }
         }
         cli::Commands::Search { name, category } => {
