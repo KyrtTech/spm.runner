@@ -1,4 +1,5 @@
 use std::{env, u16};
+use reqwest::Url;
 
 #[derive(Debug)]
 pub struct RegistryConfig {
@@ -33,5 +34,16 @@ impl RegistryConfig {
         }
 
         self
+    }
+
+    pub fn get_url(&self) -> Url {
+        if let Ok(mut url) = Url::parse(self.url.as_str()) {
+            match url.set_port(Some(self.port)) {
+                Ok(_) => url,
+                Err(_) => panic!("Could not find registry endpoint")
+            }
+        } else {
+            panic!("Could not find registry endpoint")
+        }
     }
 }
