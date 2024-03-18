@@ -52,6 +52,18 @@ impl std::str::FromStr for SearchCategory {
     }
 }
 
+impl std::fmt::Display for SearchCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let var_str = match self {
+            Self::InfraProvider => "infra-provider",
+            Self::Platform => "platform",
+            Self::InstallStrategy => "install-strategy"
+        };
+
+        write!(f, "{}", var_str)
+    }
+}
+
 pub fn get_args() -> Commands {
     let args = Args::parse();
 
