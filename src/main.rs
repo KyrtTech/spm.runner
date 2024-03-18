@@ -2,16 +2,48 @@ mod cli;
 mod config;
 mod defaults;
 
-fn do_search(name: &str, category: cli::SearchCategory) {
-    println!("Doing search for: {}, {:?}", name, category);
+use config::RegistryConfig;
+
+fn do_search(
+    name: &str,
+    category: cli::SearchCategory,
+    config: &RegistryConfig,
+) -> Result<(), url::ParseError> {
+    let mut search_url = config.get_url().join("search")?;
+
+    let url_with_query = search_url
+        .query_pairs_mut()
+        .append_pair("name", name)
+        .append_pair("type", &category.to_string())
+        .finish();
+
+    println!(
+        "Doing search for: {}, {}. Using url {}",
+        name, category, url_with_query
+    );
+
+    Ok(())
 }
 
-fn do_install(app_name: &str, infra: &str) {
-    println!("Doing install for: {}, {}", app_name, infra);
+fn do_install(app_name: &str, infra: &str, config: &RegistryConfig) -> Result<(), url::ParseError> {
+    let mut install_url = config.get_url().join("find-install-strategy")?;
+
+    let url_with_query = install_url
+        .query_pairs_mut()
+        .append_pair("application", app_name)
+        .append_pair("infra", infra)
+        .finish();
+
+    println!(
+        "Doing install for: {}, {}. Using url {}",
+        app_name, infra, url_with_query
+    );
+
+    Ok(())
 }
 
 fn main() {
-    let registry_config = config::RegistryConfig::default().update_from_env();
+    let registry_config = RegistryConfig::default().update_from_env();
 
     println!("Using registry config {:?}", registry_config);
 
@@ -19,10 +51,10 @@ fn main() {
 
     match command {
         cli::Commands::Install { application, infra } => {
-            do_install(&application, &infra);
+            let _ = do_install(&application, &infra, &registry_config);
         }
         cli::Commands::Search { name, category } => {
-            do_search(&name, category);
+            let _ = do_search(&name, category, &registry_config);
         }
     }
 }
