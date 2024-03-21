@@ -7,7 +7,7 @@ use std::{
 use tempfile::{NamedTempFile, TempDir};
 
 use crate::config::RegistryConfig;
-
+use crate::defaults;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 struct InstallStrategyResponse {
@@ -64,7 +64,11 @@ async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<Na
     Ok(script_paths)
 }
 
-pub async fn run(application: &str, infra: &str, registry_config: &RegistryConfig) -> anyhow::Result<()> {
+pub async fn run(
+    application: &str,
+    infra: &str,
+    registry_config: &RegistryConfig,
+) -> anyhow::Result<()> {
     let strategies = do_install(application, infra, registry_config).await?;
 
     if strategies.len() == 0 {
@@ -82,7 +86,10 @@ pub async fn run(application: &str, infra: &str, registry_config: &RegistryConfi
 
     let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
 
-    for file in filter_paths {
+    let output_params_files: Vec<Option<NamedTempFile>> =
+        filter_paths.iter().map(|_| NamedTempFile::new().ok()).collect();
+
+    for (index, file) in filter_paths.iter().enumerate() {
         //  need a temp directory where to run the script
         let cwd = TempDir::new();
         let cwd_path = match cwd {
@@ -95,14 +102,18 @@ pub async fn run(application: &str, infra: &str, registry_config: &RegistryConfi
 
         std::fs::set_permissions(file.path(), permissions).ok();
 
-        println!("Path: {}", cwd_path);
+        let mut command = Command::new(file.path());
+        command.current_dir(cwd_path).stdout(Stdio::inherit());
 
-        let mut command = Command::new(file.path())
-            .current_dir(cwd_path)
-            .stdout(Stdio::inherit())
-            .spawn()?;
+        let output_path = match output_params_files[index] {
+            Some(ref tmp) => tmp.path().to_str().unwrap_or_default().to_string(),
+            None => "".to_string()
+        };
 
-        command.wait().ok();
+        command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
+        let mut child = command.spawn()?;
+
+        child.wait().ok();
     }
 
     Ok(())
