@@ -1,91 +1,9 @@
 mod cli;
+mod commands;
 mod config;
 mod defaults;
 
-use std::{
-    io::Write,
-    os::unix::fs::PermissionsExt,
-    process::{Command, Stdio},
-};
-
 use config::RegistryConfig;
-use tempfile::{NamedTempFile, TempDir};
-
-fn do_search(
-    name: &str,
-    category: cli::SearchCategory,
-    config: &RegistryConfig,
-) -> Result<(), url::ParseError> {
-    let mut search_url = config.get_url().join("search")?;
-
-    let url_with_query = search_url
-        .query_pairs_mut()
-        .append_pair("name", name)
-        .append_pair("type", &category.to_string())
-        .finish();
-
-    println!(
-        "Doing search for: {}, {}. Using url {}",
-        name, category, url_with_query
-    );
-
-    Ok(())
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-struct InstallStrategyResponse {
-    title: String,
-    description: String,
-    scripts: Vec<String>,
-}
-
-async fn do_install(
-    app_name: &str,
-    infra: &str,
-    config: &RegistryConfig,
-) -> anyhow::Result<Vec<InstallStrategyResponse>> {
-    let mut install_url = config.get_url().join("find-install-strategy")?;
-
-    let url_with_query = install_url
-        .query_pairs_mut()
-        .append_pair("application", app_name)
-        .append_pair("infra", infra)
-        .finish();
-
-    println!(
-        "Doing install for: {}, {}. Using url {}",
-        app_name, infra, url_with_query
-    );
-
-    let response = reqwest::get(url_with_query.as_ref())
-        .await?
-        .json::<Vec<InstallStrategyResponse>>()
-        .await?;
-
-    Ok(response)
-}
-
-async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<NamedTempFile>>> {
-    let scripts_futures = scripts.iter().map(|url| async move {
-        let response = reqwest::get(url).await.unwrap();
-
-        if response.status().is_success() {
-            if let Ok(mut file) = tempfile::NamedTempFile::new() {
-                let bytes = response.bytes().await.unwrap_or_default();
-
-                file.write_all(&bytes).ok();
-
-                return Some(file);
-            }
-        }
-
-        None
-    });
-
-    let script_paths = futures::future::join_all(scripts_futures).await;
-
-    Ok(script_paths)
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -97,48 +15,10 @@ async fn main() -> anyhow::Result<()> {
 
     match command {
         cli::Commands::Install { application, infra } => {
-            let strategies = do_install(&application, &infra, &registry_config).await?;
-
-            if strategies.len() == 0 {
-                println!("No valid install strategies found");
-                std::process::exit(0);
-            }
-
-            let strategy = &strategies[0];
-
-            println!("Using strategy '{}'", strategy.title);
-
-            let paths = download_scripts(&strategy.scripts)
-                .await
-                .unwrap_or_default();
-
-            let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
-
-            for file in filter_paths {
-                //  need a temp directory where to run the script
-                let cwd = TempDir::new();
-                let cwd_path = match cwd {
-                    Ok(ref c) => c.path().to_str().unwrap_or_default().to_string(),
-                    Err(_) => "".to_string(),
-                };
-
-                let mut permissions = file.as_file().metadata()?.permissions();
-                permissions.set_mode(0o755);
-
-                std::fs::set_permissions(file.path(), permissions).ok();
-
-                println!("Path: {}", cwd_path);
-
-                let mut command = Command::new(file.path())
-                    .current_dir(cwd_path)
-                    .stdout(Stdio::inherit())
-                    .spawn()?;
-
-                command.wait().ok();
-            }
+            let _ = commands::install::run(&application, &infra, &registry_config).await;
         }
         cli::Commands::Search { name, category } => {
-            let _ = do_search(&name, category, &registry_config);
+            let _ = commands::search::run(&name, category, &registry_config);
         }
     }
 
