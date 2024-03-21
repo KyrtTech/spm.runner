@@ -9,7 +9,7 @@ use std::{
 };
 
 use config::RegistryConfig;
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempDir};
 
 fn do_search(
     name: &str,
@@ -115,12 +115,24 @@ async fn main() -> anyhow::Result<()> {
             let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
 
             for file in filter_paths {
+                //  need a temp directory where to run the script
+                let cwd = TempDir::new();
+                let cwd_path = match cwd {
+                    Ok(ref c) => c.path().to_str().unwrap_or_default().to_string(),
+                    Err(_) => "".to_string(),
+                };
+
                 let mut permissions = file.as_file().metadata()?.permissions();
                 permissions.set_mode(0o755);
 
                 std::fs::set_permissions(file.path(), permissions).ok();
 
-                let mut command = Command::new(file.path()).stdout(Stdio::inherit()).spawn()?;
+                println!("Path: {}", cwd_path);
+
+                let mut command = Command::new(file.path())
+                    .current_dir(cwd_path)
+                    .stdout(Stdio::inherit())
+                    .spawn()?;
 
                 command.wait().ok();
             }
