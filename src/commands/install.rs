@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Write,
     os::unix::fs::PermissionsExt,
     process::{Command, Stdio},
@@ -14,6 +15,18 @@ struct InstallStrategyResponse {
     title: String,
     description: String,
     scripts: Vec<String>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct InstallStrategyOutput {
+    output_params: HashMap<String, String>,
+}
+
+impl Default for InstallStrategyOutput {
+    fn default() -> Self {
+        InstallStrategyOutput {
+            output_params: HashMap::new(),
+        }
+    }
 }
 
 async fn do_install(
@@ -64,6 +77,22 @@ async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<Na
     Ok(script_paths)
 }
 
+fn consolidate_script_output<'a>(
+    data: InstallStrategyOutput,
+    consolidate: &mut Vec<InstallStrategyOutput>,
+    script_folder: &str,
+) {
+    //  we need to save files to persistent locations
+    if let Some(ssh_key_file) = data.output_params.get("sshKey") {
+        let _ = std::fs::copy(
+            format!("{}/{}", script_folder, ssh_key_file),
+            format!("{}.pem", consolidate.len()),
+        );
+    }
+
+    consolidate.push(data);
+}
+
 pub async fn run(
     application: &str,
     infra: &str,
@@ -86,8 +115,12 @@ pub async fn run(
 
     let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
 
-    let output_params_files: Vec<Option<NamedTempFile>> =
-        filter_paths.iter().map(|_| NamedTempFile::new().ok()).collect();
+    let output_params_files: Vec<Option<NamedTempFile>> = filter_paths
+        .iter()
+        .map(|_| NamedTempFile::new().ok())
+        .collect();
+
+    let mut all_outputs: Vec<InstallStrategyOutput> = vec![];
 
     for (index, file) in filter_paths.iter().enumerate() {
         //  need a temp directory where to run the script
@@ -103,17 +136,30 @@ pub async fn run(
         std::fs::set_permissions(file.path(), permissions).ok();
 
         let mut command = Command::new(file.path());
-        command.current_dir(cwd_path).stdout(Stdio::inherit());
+        command.current_dir(&cwd_path).stdout(Stdio::inherit());
 
         let output_path = match output_params_files[index] {
             Some(ref tmp) => tmp.path().to_str().unwrap_or_default().to_string(),
-            None => "".to_string()
+            None => "".to_string(),
         };
 
         command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
         let mut child = command.spawn()?;
 
         child.wait().ok();
+
+        //  read the output file if present
+        let output_data = match output_params_files[index] {
+            Some(ref tmp) => serde_json::from_reader(tmp).unwrap_or_default(),
+            None => InstallStrategyOutput::default(),
+        };
+
+        consolidate_script_output(output_data, &mut all_outputs, &cwd_path);
+    }
+
+    match serde_json::to_string(&all_outputs) {
+        Ok(json) => println!("All output: {}", json),
+        Err(e) => eprintln!("All output error: {}", e),
     }
 
     Ok(())
