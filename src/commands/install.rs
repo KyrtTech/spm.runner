@@ -15,7 +15,10 @@ struct InstallStrategyResponse {
     title: String,
     description: String,
     scripts: Vec<String>,
+    #[serde(rename = "downloadURL")]
+    download_url: Option<String>,
 }
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct InstallStrategyOutput {
     output_params: HashMap<String, String>,
