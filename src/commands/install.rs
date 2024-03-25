@@ -96,20 +96,9 @@ fn consolidate_script_output<'a>(
     consolidate.push(data);
 }
 
-pub async fn run(
-    application: &str,
-    infra: &str,
-    registry_config: &RegistryConfig,
-) -> anyhow::Result<()> {
-    let strategies = do_install(application, infra, registry_config).await?;
-
-    if strategies.len() == 0 {
-        println!("No valid install strategies found");
-        std::process::exit(0);
-    }
-
-    let strategy = &strategies[0];
-
+async fn run_strategy(
+    strategy: &InstallStrategyResponse,
+) -> anyhow::Result<Vec<InstallStrategyOutput>> {
     println!("Using strategy '{}'", strategy.title);
 
     let paths = download_scripts(&strategy.scripts)
@@ -159,6 +148,25 @@ pub async fn run(
 
         consolidate_script_output(output_data, &mut all_outputs, &cwd_path);
     }
+
+    return Ok(all_outputs);
+}
+
+pub async fn run(
+    application: &str,
+    infra: &str,
+    registry_config: &RegistryConfig,
+) -> anyhow::Result<()> {
+    let strategies = do_install(application, infra, registry_config).await?;
+
+    if strategies.len() == 0 {
+        println!("No valid install strategies found");
+        std::process::exit(0);
+    }
+
+    let strategy = &strategies[0];
+
+    let all_outputs = run_strategy(strategy).await.ok();
 
     match serde_json::to_string(&all_outputs) {
         Ok(json) => println!("All output: {}", json),
