@@ -1,9 +1,12 @@
 use std::{
     collections::HashMap,
+    fs::{self, File},
     io::Write,
     os::unix::fs::PermissionsExt,
     process::{Command, Stdio},
 };
+
+use heck::ToShoutySnakeCase;
 
 use tempfile::{NamedTempFile, TempDir};
 
@@ -19,7 +22,7 @@ struct InstallStrategyResponse {
     download_url: Option<String>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct InstallStrategyOutput {
     output_params: HashMap<String, String>,
 }
@@ -80,24 +83,36 @@ async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<Na
     Ok(script_paths)
 }
 
-fn consolidate_script_output<'a>(
+fn consolidate_script_output(
     data: InstallStrategyOutput,
     consolidate: &mut Vec<InstallStrategyOutput>,
     script_folder: &str,
-) {
+) -> anyhow::Result<()> {
+    let mut new_data = data.clone();
+
     //  we need to save files to persistent locations
     if let Some(ssh_key_file) = data.output_params.get("sshKey") {
-        let _ = std::fs::copy(
-            format!("{}/{}", script_folder, ssh_key_file),
-            format!("{}.pem", consolidate.len()),
+        let destination = format!("{}/{}.pem", defaults::OUTPUT_FOLDER, consolidate.len());
+
+        let _ = std::fs::copy(format!("{}/{}", script_folder, ssh_key_file), &destination);
+
+        new_data.output_params.insert(
+            "sshKey".to_string(),
+            fs::canonicalize(destination)?
+                .to_str()
+                .unwrap_or_default()
+                .to_string(),
         );
     }
 
-    consolidate.push(data);
+    consolidate.push(new_data);
+
+    Ok(())
 }
 
 async fn run_strategy(
     strategy: &InstallStrategyResponse,
+    env_vars: &HashMap<String, String>,
 ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
     println!("Using strategy '{}'", strategy.title);
 
@@ -136,6 +151,11 @@ async fn run_strategy(
         };
 
         command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
+        //  add env vars to the scripts
+        env_vars.into_iter().for_each(|(k, v)| {
+            command.env(k, v);
+        });
+
         let mut child = command.spawn()?;
 
         child.wait().ok();
@@ -146,10 +166,22 @@ async fn run_strategy(
             None => InstallStrategyOutput::default(),
         };
 
-        consolidate_script_output(output_data, &mut all_outputs, &cwd_path);
+        let _ = consolidate_script_output(output_data, &mut all_outputs, &cwd_path);
     }
 
     return Ok(all_outputs);
+}
+
+fn save_env_vars(env: &HashMap<String, String>, index: u16) {
+    if let Ok(serialized) = serde_json::to_string(env) {
+        if let Ok(mut file) = File::create(format!(
+            "{}/{}.env.json",
+            defaults::OUTPUT_FOLDER,
+            index.to_string()
+        )) {
+            let _ = file.write_all(serialized.as_bytes());
+        }
+    }
 }
 
 pub async fn run(
@@ -164,13 +196,33 @@ pub async fn run(
         std::process::exit(0);
     }
 
-    let strategy = &strategies[0];
+    //  init persistent output directory
+    fs::create_dir_all(defaults::OUTPUT_FOLDER)?;
 
-    let all_outputs = run_strategy(strategy).await.ok();
+    let mut env_vars = HashMap::<String, String>::new();
+    let mut index = 0;
 
-    match serde_json::to_string(&all_outputs) {
-        Ok(json) => println!("All output: {}", json),
-        Err(e) => eprintln!("All output error: {}", e),
+    for strategy in strategies {
+        if let Some(download_url) = &strategy.download_url {
+            env_vars.insert(String::from("DOWNLOAD_URL"), download_url.clone());
+        }
+
+        save_env_vars(&env_vars, index);
+
+        let all_outputs = run_strategy(&strategy, &env_vars).await.unwrap_or_default();
+
+        env_vars.extend(
+            (&all_outputs[0].output_params)
+                .into_iter()
+                .map(|(k, v)| (k.to_shouty_snake_case(), v.clone())),
+        );
+
+        match serde_json::to_string(&all_outputs) {
+            Ok(json) => println!("All output: {}", json),
+            Err(e) => eprintln!("All output error: {}", e),
+        }
+
+        index += 1;
     }
 
     Ok(())
