@@ -225,5 +225,11 @@ pub async fn run(
         index += 1;
     }
 
+    println!("Final env vars: ");
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&env_vars).unwrap_or_default()
+    );
+
     Ok(())
 }
