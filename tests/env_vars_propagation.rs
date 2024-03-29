@@ -123,8 +123,6 @@ async fn one_step_strategy_with_scripts() {
     _m.assert_async().await;
     _s.assert_async().await;
 
-    println!("---- {}", output);
-
     assert_ne!(output.find("Using strategy 'Some title'"), None);
     assert_eq!(
         env_vars.get("URL"),
