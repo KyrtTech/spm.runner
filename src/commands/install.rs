@@ -217,15 +217,17 @@ pub async fn run<W: Write>(
 
         let all_outputs = run_strategy(&strategy, &env_vars).await.unwrap_or_default();
 
-        env_vars.extend(
-            (&all_outputs[0].output_params)
-                .into_iter()
-                .map(|(k, v)| (k.to_shouty_snake_case(), v.clone())),
-        );
+        if all_outputs.len() != 0 {
+            env_vars.extend(
+                (&all_outputs[0].output_params)
+                    .into_iter()
+                    .map(|(k, v)| (k.to_shouty_snake_case(), v.clone())),
+            );
 
-        match serde_json::to_string(&all_outputs) {
-            Ok(json) => writeln!(writer, "All output: {}", json).unwrap_or(()),
-            Err(e) => writeln!(writer, "All output error: {}", e).unwrap_or(()),
+            match serde_json::to_string(&all_outputs) {
+                Ok(json) => writeln!(writer, "All output: {}", json).unwrap_or(()),
+                Err(e) => writeln!(writer, "All output error: {}", e).unwrap_or(()),
+            }
         }
 
         index += 1;
