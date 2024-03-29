@@ -184,15 +184,21 @@ fn save_env_vars(env: &HashMap<String, String>, index: u16) {
     }
 }
 
-pub async fn run(
+pub async fn run<W: Write>(
     application: &str,
     infra: &str,
     registry_config: &RegistryConfig,
+    writer: &mut W,
 ) -> anyhow::Result<()> {
-    let strategies = do_install(application, infra, registry_config).await?;
+    let mut strategies = vec![];
+
+    match do_install(application, infra, registry_config).await {
+        Ok(str) => strategies = str,
+        Err(err) => eprintln!("{}", err),
+    }
 
     if strategies.len() == 0 {
-        println!("No valid install strategies found");
+        let _ = writeln!(writer, "No valid install strategies found");
         std::process::exit(0);
     }
 
@@ -218,15 +224,16 @@ pub async fn run(
         );
 
         match serde_json::to_string(&all_outputs) {
-            Ok(json) => println!("All output: {}", json),
-            Err(e) => eprintln!("All output error: {}", e),
+            Ok(json) => writeln!(writer, "All output: {}", json).unwrap_or(()),
+            Err(e) => writeln!(writer, "All output error: {}", e).unwrap_or(()),
         }
 
         index += 1;
     }
 
-    println!("Final env vars: ");
-    println!(
+    let _ = writeln!(writer, "Final env vars: ");
+    let _ = writeln!(
+        writer,
         "{}",
         serde_json::to_string_pretty(&env_vars).unwrap_or_default()
     );
