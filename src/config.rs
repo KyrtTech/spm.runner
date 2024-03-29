@@ -36,6 +36,13 @@ impl RegistryConfig {
         self
     }
 
+    pub fn new(url: String, port: u16) -> Self {
+        RegistryConfig {
+            url,
+            port
+        }
+    }
+
     pub fn get_url(&self) -> Url {
         if let Ok(mut url) = Url::parse(self.url.as_str()) {
             match url.set_port(Some(self.port)) {
