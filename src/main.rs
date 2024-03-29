@@ -1,9 +1,4 @@
-mod cli;
-mod commands;
-mod config;
-mod defaults;
-
-use config::RegistryConfig;
+use spm_runner::{cli, commands, config::RegistryConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,7 +10,8 @@ async fn main() -> anyhow::Result<()> {
 
     match command {
         cli::Commands::Install { application, infra } => {
-            let _ = commands::install::run(&application, &infra, &registry_config).await;
+            let _ =
+                commands::install::run(&application, &infra, &registry_config).await;
         }
         cli::Commands::Search { name, category } => {
             let _ = commands::search::run(&name, category, &registry_config);
