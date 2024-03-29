@@ -192,8 +192,9 @@ pub async fn run<W: Write>(
     infra: &str,
     registry_config: &RegistryConfig,
     writer: &mut W,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<HashMap<String, String>> {
     let mut strategies = vec![];
+    let mut env_vars = HashMap::<String, String>::new();
 
     match do_install(application, infra, registry_config, writer).await {
         Ok(str) => strategies = str,
@@ -202,13 +203,12 @@ pub async fn run<W: Write>(
 
     if strategies.len() == 0 {
         let _ = writeln!(writer, "No valid install strategies found");
-        return Ok(());
+        return Ok(env_vars);
     }
 
     //  init persistent output directory
     fs::create_dir_all(defaults::OUTPUT_FOLDER)?;
 
-    let mut env_vars = HashMap::<String, String>::new();
     let mut index = 0;
 
     for strategy in strategies {
@@ -245,5 +245,5 @@ pub async fn run<W: Write>(
         serde_json::to_string_pretty(&env_vars).unwrap_or_default()
     );
 
-    Ok(())
+    Ok(env_vars)
 }
