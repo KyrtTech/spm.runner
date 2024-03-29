@@ -11,7 +11,7 @@ async fn test_no_strategy_found() {
     let _m = server
         .mock(
             "GET",
-            Matcher::Regex(r"/find-install-strategy".to_string()),
+            Matcher::Regex(r"^/find-install-strategy".to_string()),
         )
         .with_status(200)
         .with_header("content-type", "application/json")
