@@ -245,5 +245,7 @@ pub async fn run<W: Write>(
         serde_json::to_string_pretty(&env_vars).unwrap_or_default()
     );
 
+    save_env_vars(&env_vars, index);
+
     Ok(env_vars)
 }
