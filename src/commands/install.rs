@@ -199,7 +199,7 @@ pub async fn run<W: Write>(
 
     if strategies.len() == 0 {
         let _ = writeln!(writer, "No valid install strategies found");
-        std::process::exit(0);
+        return Ok(());
     }
 
     //  init persistent output directory
