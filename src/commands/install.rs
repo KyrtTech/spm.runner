@@ -35,10 +35,11 @@ impl Default for InstallStrategyOutput {
     }
 }
 
-async fn do_install(
+async fn do_install<W: Write>(
     app_name: &str,
     infra: &str,
     config: &RegistryConfig,
+    writer: &mut W,
 ) -> anyhow::Result<Vec<InstallStrategyResponse>> {
     let mut install_url = config.get_url().join("find-install-strategy")?;
 
@@ -48,7 +49,8 @@ async fn do_install(
         .append_pair("infra", infra)
         .finish();
 
-    println!(
+    let _ = writeln!(
+        writer,
         "Doing install for: {}, {}. Using url {}",
         app_name, infra, url_with_query
     );
@@ -110,11 +112,12 @@ fn consolidate_script_output(
     Ok(())
 }
 
-async fn run_strategy(
+async fn run_strategy<W: Write>(
     strategy: &InstallStrategyResponse,
     env_vars: &HashMap<String, String>,
+    writer: &mut W,
 ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
-    println!("Using strategy '{}'", strategy.title);
+    let _ = writeln!(writer, "Using strategy '{}'", strategy.title);
 
     let paths = download_scripts(&strategy.scripts)
         .await
@@ -192,7 +195,7 @@ pub async fn run<W: Write>(
 ) -> anyhow::Result<()> {
     let mut strategies = vec![];
 
-    match do_install(application, infra, registry_config).await {
+    match do_install(application, infra, registry_config, writer).await {
         Ok(str) => strategies = str,
         Err(err) => eprintln!("{}", err),
     }
@@ -215,7 +218,9 @@ pub async fn run<W: Write>(
 
         save_env_vars(&env_vars, index);
 
-        let all_outputs = run_strategy(&strategy, &env_vars).await.unwrap_or_default();
+        let all_outputs = run_strategy(&strategy, &env_vars, writer)
+            .await
+            .unwrap_or_default();
 
         if all_outputs.len() != 0 {
             env_vars.extend(
