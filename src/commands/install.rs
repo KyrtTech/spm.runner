@@ -17,6 +17,7 @@ use crate::defaults;
 struct InstallStrategyResponse {
     title: String,
     description: String,
+    uri: String,
     scripts: Vec<String>,
     #[serde(rename = "downloadURL")]
     download_url: Option<String>,
