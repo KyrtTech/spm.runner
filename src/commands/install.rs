@@ -20,6 +20,9 @@ struct InstallStrategyResponse {
     scripts: Vec<String>,
     #[serde(rename = "downloadURL")]
     download_url: Option<String>,
+    runner: Option<String>,
+    #[serde(rename = "optionalParams")]
+    optional_params: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
