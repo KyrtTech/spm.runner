@@ -11,9 +11,14 @@ async fn main() -> anyhow::Result<()> {
     let command = cli::get_args();
 
     match command {
-        cli::Commands::Install { application, infra } => {
+        cli::Commands::Install {
+            application,
+            infra,
+            dry,
+        } => {
             let _ =
-                commands::install::run(&application, &infra, &registry_config, &mut stdout()).await;
+                commands::install::run(&application, &infra, dry, &registry_config, &mut stdout())
+                    .await;
         }
         cli::Commands::Search { name, category } => {
             let _ = commands::search::run(&name, category, &registry_config);

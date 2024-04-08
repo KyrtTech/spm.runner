@@ -28,6 +28,10 @@ pub enum Commands {
         /// Name of the infra
         #[arg(short, long)]
         infra: String,
+
+        /// Dry run, returns the plan, but doesn't run it
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        dry: bool,
     },
 }
 

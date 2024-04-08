@@ -190,6 +190,7 @@ fn save_env_vars(env: &HashMap<String, String>, index: u16) {
 pub async fn run<W: Write>(
     application: &str,
     infra: &str,
+    dry: bool,
     registry_config: &RegistryConfig,
     writer: &mut W,
 ) -> anyhow::Result<HashMap<String, String>> {
@@ -199,6 +200,15 @@ pub async fn run<W: Write>(
     match do_install(application, infra, registry_config, writer).await {
         Ok(str) => strategies = str,
         Err(err) => eprintln!("{}", err),
+    }
+
+    if dry {
+        let _ = writeln!(
+            writer,
+            "{}",
+            serde_json::to_string_pretty(&strategies).unwrap_or_default()
+        );
+        return Ok(env_vars);
     }
 
     if strategies.len() == 0 {
