@@ -29,6 +29,10 @@ pub enum Commands {
         #[arg(short, long)]
         infra: String,
 
+        /// Optional params file
+        #[arg(short, long, default_value = "")]
+        user_params: String,
+
         /// Dry run, returns the plan, but doesn't run it
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         dry: bool,
@@ -61,7 +65,7 @@ impl std::fmt::Display for SearchCategory {
         let var_str = match self {
             Self::InfraProvider => "infra-provider",
             Self::Platform => "platform",
-            Self::InstallStrategy => "install-strategy"
+            Self::InstallStrategy => "install-strategy",
         };
 
         write!(f, "{}", var_str)

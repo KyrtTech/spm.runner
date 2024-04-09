@@ -1,6 +1,6 @@
 use std::io::stdout;
 
-use spm_runner::{cli, commands, config::RegistryConfig};
+use spm_runner::{cli, commands, config::RegistryConfig, optional_params};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -14,11 +14,20 @@ async fn main() -> anyhow::Result<()> {
         cli::Commands::Install {
             application,
             infra,
+            user_params,
             dry,
         } => {
-            let _ =
-                commands::install::run(&application, &infra, dry, &registry_config, &mut stdout())
-                    .await;
+            let params = optional_params::load_optional_params(&user_params);
+
+            let _ = commands::install::run(
+                &application,
+                &infra,
+                dry,
+                &user_params,
+                &registry_config,
+                &mut stdout(),
+            )
+            .await;
         }
         cli::Commands::Search { name, category } => {
             let _ = commands::search::run(&name, category, &registry_config);

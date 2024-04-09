@@ -195,6 +195,7 @@ pub async fn run<W: Write>(
     application: &str,
     infra: &str,
     dry: bool,
+    user_params: &str,
     registry_config: &RegistryConfig,
     writer: &mut W,
 ) -> anyhow::Result<HashMap<String, String>> {
