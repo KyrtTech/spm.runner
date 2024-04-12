@@ -10,8 +10,8 @@ use heck::ToShoutySnakeCase;
 
 use tempfile::{NamedTempFile, TempDir};
 
-use crate::config::RegistryConfig;
 use crate::defaults;
+use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 struct InstallStrategyResponse {
@@ -191,11 +191,39 @@ fn save_env_vars(env: &HashMap<String, String>, index: u16) {
     }
 }
 
+fn move_user_params_for_strategy(
+    params: &UserOptionalParams,
+    name: &str,
+) -> HashMap<String, NamedTempFile> {
+    let default = HashMap::new();
+    let strategy_params = params.get(name).unwrap_or(&default);
+
+    let mut ret: HashMap<String, NamedTempFile> = HashMap::new();
+
+    strategy_params.keys().into_iter().for_each(|key| {
+        let fragments = key.split("/").collect::<Vec<&str>>();
+        let name = fragments.last().unwrap_or(&"");
+        let some_file = NamedTempFile::new();
+
+        if let Ok(file) = some_file {
+            let param_maybe = strategy_params.get(key);
+
+            if let Some(param) = param_maybe {
+                param.write_to_file(file.path().to_str().unwrap_or_default());
+            }
+
+            ret.insert(name.to_string().to_shouty_snake_case(), file);
+        }
+    });
+
+    return ret;
+}
+
 pub async fn run<W: Write>(
     application: &str,
     infra: &str,
     dry: bool,
-    user_params: &str,
+    user_params: &UserOptionalParams,
     registry_config: &RegistryConfig,
     writer: &mut W,
 ) -> anyhow::Result<HashMap<String, String>> {
@@ -233,7 +261,17 @@ pub async fn run<W: Write>(
 
         save_env_vars(&env_vars, index);
 
-        let all_outputs = run_strategy(&strategy, &env_vars, writer)
+        let user_params = move_user_params_for_strategy(&user_params, &strategy.uri);
+
+        //  extend env_vars with the user provided
+        let mut env_vars_with_user = env_vars.clone();
+        env_vars_with_user.extend(
+            user_params
+                .into_iter()
+                .map(|(key, file)| (key, file.path().to_str().unwrap_or_default().to_string())),
+        );
+
+        let all_outputs = run_strategy(&strategy, &env_vars_with_user, writer)
             .await
             .unwrap_or_default();
 

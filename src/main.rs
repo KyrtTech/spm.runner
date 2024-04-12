@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
                 &application,
                 &infra,
                 dry,
-                &user_params,
+                &params,
                 &registry_config,
                 &mut stdout(),
             )
