@@ -26,6 +26,25 @@ pub struct UriEntry {
     payload: Payload,
 }
 
+impl UriEntry {
+    pub fn write_to_file(self: &Self, path: &str) {
+        match self.uri_type {
+            UriType::Inline => {
+                let _ = fs::write(
+                    path,
+                    serde_json::to_string(&self.payload).unwrap_or_default(),
+                );
+            }
+            UriType::Path => {
+                let _ = match &self.payload {
+                    Payload::Path(from) => fs::copy(from, path),
+                    Payload::Json(_) => todo!(),
+                };
+            }
+        }
+    }
+}
+
 // The top-level structure represents the user provided params
 pub type UserOptionalParams = HashMap<String, HashMap<String, UriEntry>>;
 
