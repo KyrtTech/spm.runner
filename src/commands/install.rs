@@ -263,13 +263,18 @@ pub async fn run<W: Write>(
 
         let user_params = move_user_params_for_strategy(&user_params, &strategy.uri);
 
+        //  will move temp files in this vec
+        //  we only send the path, so the file
+        //  would go out of scope and be deleted
+        let mut temp_files: Vec<NamedTempFile> = vec![];
+
         //  extend env_vars with the user provided
         let mut env_vars_with_user = env_vars.clone();
-        env_vars_with_user.extend(
-            user_params
-                .into_iter()
-                .map(|(key, file)| (key, file.path().to_str().unwrap_or_default().to_string())),
-        );
+        env_vars_with_user.extend(user_params.into_iter().map(|(key, file)| {
+            let path = file.path().to_str().unwrap_or_default().to_string();
+            temp_files.push(file);
+            return (key, path);
+        }));
 
         let all_outputs = run_strategy(&strategy, &env_vars_with_user, writer)
             .await
