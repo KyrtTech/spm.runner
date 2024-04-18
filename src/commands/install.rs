@@ -13,7 +13,14 @@ use tempfile::{NamedTempFile, TempDir};
 use crate::defaults;
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct InstallStrategyArgument {
+    name: String,
+    param: String,
+    description: Option<String>
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 struct InstallStrategyResponse {
     title: String,
     description: String,
@@ -23,7 +30,7 @@ struct InstallStrategyResponse {
     download_url: Option<String>,
     runner: Option<String>,
     #[serde(rename = "optionalParams")]
-    optional_params: Vec<String>,
+    optional_params: Vec<InstallStrategyArgument>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
