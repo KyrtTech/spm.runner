@@ -21,8 +21,8 @@ async fn main() -> anyhow::Result<()> {
             infra,
             user_params,
             dry,
-            project: _,
-            env: _,
+            project,
+            env,
         } => {
             let params = optional_params::load_optional_params(&user_params);
 
@@ -32,13 +32,11 @@ async fn main() -> anyhow::Result<()> {
                 dry,
                 user_params: &params,
                 registry_config: &registry_config,
+                env: &env,
+                project: &project,
             };
 
-            let _ = commands::install::run(
-                run_args,
-                &mut stdout(),
-            )
-            .await;
+            let _ = commands::install::run(run_args, &mut stdout()).await;
         }
         cli::Commands::Search { name, category } => {
             let _ = commands::search::run(&name, category, &registry_config);

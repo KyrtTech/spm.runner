@@ -36,6 +36,14 @@ pub enum Commands {
         /// Dry run, returns the plan, but doesn't run it
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         dry: bool,
+
+        /// Project name
+        #[arg(short, long, default_value = "SMP")]
+        project: String,
+
+        /// Environment
+        #[arg(short, long, default_value = "dev")]
+        env: String,
     },
 }
 

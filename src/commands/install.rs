@@ -232,6 +232,8 @@ pub struct RunArguments<'a> {
     pub dry: bool,
     pub user_params: &'a UserOptionalParams,
     pub registry_config: &'a RegistryConfig,
+    pub project: &'a str,
+    pub env: &'a str,
 }
 
 pub async fn run<W: Write>(
@@ -241,12 +243,21 @@ pub async fn run<W: Write>(
     let mut strategies = vec![];
     let mut env_vars = HashMap::<String, String>::new();
 
+    //  add default env vars
+    env_vars.insert("SPM_PROJECT".to_string(), args.project.to_string());
+    env_vars.insert("SPM_ENV".to_string(), args.env.to_string());
+
     match do_install(args.application, args.infra, args.registry_config, writer).await {
         Ok(str) => strategies = str,
         Err(err) => eprintln!("{}", err),
     }
 
     if args.dry {
+        let _ = writeln!(
+            writer,
+            "Using env vars: {}",
+            serde_json::to_string_pretty(&env_vars).unwrap_or_default()
+        );
         let _ = writeln!(
             writer,
             "{}",
