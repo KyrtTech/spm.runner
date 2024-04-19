@@ -1,8 +1,9 @@
-use spm_runner::config::RegistryConfig;
+use std::collections::HashMap;
+
+use spm_runner::{commands::install::RunArguments, config::RegistryConfig};
 
 use mockito::{Matcher, Server};
 use tokio;
-use url::Url;
 
 #[tokio::test]
 async fn test_no_strategy_found() {
@@ -19,13 +20,21 @@ async fn test_no_strategy_found() {
         .create_async()
         .await;
 
-    let url = Url::parse(&server.url()).unwrap();
-
-    let registry_config = RegistryConfig::new(server.url(), url.port().unwrap_or(80));
+    let registry_config = RegistryConfig::new(server.url());
 
     let mut buffer = Vec::new();
 
-    let _ = spm_runner::commands::install::run("Suri", "AWS", &registry_config, &mut buffer).await;
+    let empty_user_params = HashMap::new();
+
+    let args = RunArguments {
+        application: "Suri",
+        infra: "AWS",
+        dry: false,
+        user_params: &empty_user_params,
+        registry_config: &registry_config,
+    };
+
+    let _ = spm_runner::commands::install::run(args, &mut buffer).await;
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -48,20 +57,30 @@ async fn one_step_strategy_no_scripts() {
         .with_body(
             r#"[{
          "title": "Some title",
+         "uri": "http://something.com",
          "description": "Some description",
+         "optionalParams": [],
          "scripts": []
         }]"#,
         )
         .create_async()
         .await;
 
-    let url = Url::parse(&server.url()).unwrap();
-
-    let registry_config = RegistryConfig::new(server.url(), url.port().unwrap_or(80));
+    let registry_config = RegistryConfig::new(server.url());
 
     let mut buffer = Vec::new();
 
-    let _ = spm_runner::commands::install::run("Suri", "AWS", &registry_config, &mut buffer).await;
+    let empty_user_params = HashMap::new();
+
+    let args = RunArguments {
+        application: "Suri",
+        infra: "AWS",
+        dry: false,
+        user_params: &empty_user_params,
+        registry_config: &registry_config,
+    };
+
+    let _ = spm_runner::commands::install::run(args, &mut buffer).await;
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -79,7 +98,9 @@ async fn one_step_strategy_with_scripts() {
     let get_body = format!(
         r#"[{{
         "title": "Some title",
+        "uri": "http://something.com",
         "description": "Some description",
+        "optionalParams": [],
         "scripts": ["{}"]
        }}]"#,
         strategy_url
@@ -108,13 +129,21 @@ async fn one_step_strategy_with_scripts() {
         .create_async()
         .await;
 
-    let url = Url::parse(&server.url()).unwrap();
+    let registry_config = RegistryConfig::new(server.url());
 
-    let registry_config = RegistryConfig::new(server.url(), url.port().unwrap_or(80));
+    let empty_user_params = HashMap::new();
+
+    let args = RunArguments {
+        application: "Suri",
+        infra: "AWS",
+        dry: false,
+        user_params: &empty_user_params,
+        registry_config: &registry_config,
+    };
 
     let mut buffer = Vec::new();
 
-    let env_vars = spm_runner::commands::install::run("Suri", "AWS", &registry_config, &mut buffer)
+    let env_vars = spm_runner::commands::install::run(args, &mut buffer)
         .await
         .unwrap_or_default();
 
@@ -140,11 +169,15 @@ async fn two_one_step_strategy_with_scripts() {
     let get_body = format!(
         r#"[{{
         "title": "Some title 1",
+        "uri": "http://something.com",
         "description": "Some description 1",
+        "optionalParams": [],
         "scripts": ["{}"]
        }}, {{
         "title": "Some title 2",
+        "uri": "http://something2.com",
         "description": "Some description 2",
+        "optionalParams": [],
         "scripts": ["{}"]
        }}]"#,
         strategy_url_1, strategy_url_2
@@ -185,13 +218,21 @@ async fn two_one_step_strategy_with_scripts() {
         .create_async()
         .await;
 
-    let url = Url::parse(&server.url()).unwrap();
+    let registry_config = RegistryConfig::new(server.url());
 
-    let registry_config = RegistryConfig::new(server.url(), url.port().unwrap_or(80));
+    let empty_user_params = HashMap::new();
+
+    let args = RunArguments {
+        application: "Suri",
+        infra: "AWS",
+        dry: false,
+        user_params: &empty_user_params,
+        registry_config: &registry_config,
+    };
 
     let mut buffer = Vec::new();
 
-    let env_vars = spm_runner::commands::install::run("Suri", "AWS", &registry_config, &mut buffer)
+    let env_vars = spm_runner::commands::install::run(args, &mut buffer)
         .await
         .unwrap_or_default();
 
@@ -207,8 +248,5 @@ async fn two_one_step_strategy_with_scripts() {
         env_vars.get("URL"),
         Some(&"http://localhost:8080".to_string())
     );
-    assert_eq!(
-        env_vars.get("IP"),
-        Some(&"127.0.0.1".to_string())
-    );
+    assert_eq!(env_vars.get("IP"), Some(&"127.0.0.1".to_string()));
 }
