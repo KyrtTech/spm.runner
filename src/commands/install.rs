@@ -17,7 +17,7 @@ use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 struct InstallStrategyArgument {
     name: String,
     param: String,
-    description: Option<String>
+    description: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -226,23 +226,27 @@ fn move_user_params_for_strategy(
     return ret;
 }
 
+pub struct RunArguments<'a> {
+    pub application: &'a str,
+    pub infra: &'a str,
+    pub dry: bool,
+    pub user_params: &'a UserOptionalParams,
+    pub registry_config: &'a RegistryConfig,
+}
+
 pub async fn run<W: Write>(
-    application: &str,
-    infra: &str,
-    dry: bool,
-    user_params: &UserOptionalParams,
-    registry_config: &RegistryConfig,
+    args: RunArguments<'_>,
     writer: &mut W,
 ) -> anyhow::Result<HashMap<String, String>> {
     let mut strategies = vec![];
     let mut env_vars = HashMap::<String, String>::new();
 
-    match do_install(application, infra, registry_config, writer).await {
+    match do_install(args.application, args.infra, args.registry_config, writer).await {
         Ok(str) => strategies = str,
         Err(err) => eprintln!("{}", err),
     }
 
-    if dry {
+    if args.dry {
         let _ = writeln!(
             writer,
             "{}",
@@ -268,7 +272,7 @@ pub async fn run<W: Write>(
 
         save_env_vars(&env_vars, index);
 
-        let user_params = move_user_params_for_strategy(&user_params, &strategy.uri);
+        let user_params = move_user_params_for_strategy(&args.user_params, &strategy.uri);
 
         //  will move temp files in this vec
         //  we only send the path, so the file
