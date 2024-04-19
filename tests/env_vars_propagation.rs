@@ -32,6 +32,8 @@ async fn test_no_strategy_found() {
         dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
+        project: "test",
+        env: "dev",
     };
 
     let _ = spm_runner::commands::install::run(args, &mut buffer).await;
@@ -78,6 +80,8 @@ async fn one_step_strategy_no_scripts() {
         dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
+        project: "test",
+        env: "dev",
     };
 
     let _ = spm_runner::commands::install::run(args, &mut buffer).await;
@@ -139,6 +143,8 @@ async fn one_step_strategy_with_scripts() {
         dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
+        project: "test",
+        env: "dev",
     };
 
     let mut buffer = Vec::new();
@@ -228,6 +234,8 @@ async fn two_one_step_strategy_with_scripts() {
         dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
+        project: "test",
+        env: "dev",
     };
 
     let mut buffer = Vec::new();
