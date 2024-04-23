@@ -31,6 +31,7 @@ struct InstallStrategyResponse {
     runner: Option<String>,
     #[serde(rename = "optionalParams")]
     optional_params: Vec<InstallStrategyArgument>,
+    alternatives: Vec<InstallStrategyResponse>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
