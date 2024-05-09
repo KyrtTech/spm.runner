@@ -35,3 +35,42 @@ impl RegistryConfig {
         }
     }
 }
+
+pub struct AppConfig<'a> {
+    dry_run: bool,
+    interactive: bool,
+    env: &'a str,
+    project: &'a str,
+}
+
+impl AppConfig<'_> {
+    pub fn new<'a>(
+        env: &'a str,
+        project: &'a str,
+        dry_run: bool,
+        interactive: bool,
+    ) -> AppConfig<'a> {
+        AppConfig {
+            dry_run,
+            interactive,
+            env,
+            project,
+        }
+    }
+
+    pub fn dry_run(&self) -> bool {
+        self.dry_run
+    }
+
+    pub fn interactive(&self) -> bool {
+        self.interactive
+    }
+
+    pub fn env(&self) -> &str {
+        self.env
+    }
+
+    pub fn project(&self) -> &str {
+        self.project
+    }
+}

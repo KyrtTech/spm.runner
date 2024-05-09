@@ -10,7 +10,7 @@ use heck::ToShoutySnakeCase;
 
 use tempfile::{NamedTempFile, TempDir};
 
-use crate::defaults;
+use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -230,30 +230,28 @@ fn move_user_params_for_strategy(
 pub struct RunArguments<'a> {
     pub application: &'a str,
     pub infra: &'a str,
-    pub dry: bool,
     pub user_params: &'a UserOptionalParams,
     pub registry_config: &'a RegistryConfig,
-    pub project: &'a str,
-    pub env: &'a str,
 }
 
 pub async fn run<W: Write>(
     args: RunArguments<'_>,
+    app_config: AppConfig<'_>,
     writer: &mut W,
 ) -> anyhow::Result<HashMap<String, String>> {
     let mut strategies = vec![];
     let mut env_vars = HashMap::<String, String>::new();
 
     //  add default env vars
-    env_vars.insert("SPM_PROJECT".to_string(), args.project.to_string());
-    env_vars.insert("SPM_ENV".to_string(), args.env.to_string());
+    env_vars.insert("SPM_PROJECT".to_string(), app_config.project().to_string());
+    env_vars.insert("SPM_ENV".to_string(), app_config.env().to_string());
 
     match do_install(args.application, args.infra, args.registry_config, writer).await {
         Ok(str) => strategies = str,
         Err(err) => eprintln!("{}", err),
     }
 
-    if args.dry {
+    if app_config.dry_run() {
         let _ = writeln!(
             writer,
             "Using env vars: {}",
@@ -264,7 +262,6 @@ pub async fn run<W: Write>(
             "{}",
             serde_json::to_string_pretty(&strategies).unwrap_or_default()
         );
-        return Ok(env_vars);
     }
 
     if strategies.len() == 0 {

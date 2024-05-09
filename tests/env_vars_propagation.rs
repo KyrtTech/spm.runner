@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use spm_runner::{commands::install::RunArguments, config::RegistryConfig};
+use spm_runner::{
+    commands::install::RunArguments,
+    config::{AppConfig, RegistryConfig},
+};
 
 use mockito::{Matcher, Server};
 use tokio;
@@ -29,14 +32,13 @@ async fn test_no_strategy_found() {
     let args = RunArguments {
         application: "Suri",
         infra: "AWS",
-        dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
-        project: "test",
-        env: "dev",
     };
 
-    let _ = spm_runner::commands::install::run(args, &mut buffer).await;
+    let config = AppConfig::new("dev", "test", false, false);
+
+    let _ = spm_runner::commands::install::run(args, config, &mut buffer).await;
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -77,14 +79,13 @@ async fn one_step_strategy_no_scripts() {
     let args = RunArguments {
         application: "Suri",
         infra: "AWS",
-        dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
-        project: "test",
-        env: "dev",
     };
 
-    let _ = spm_runner::commands::install::run(args, &mut buffer).await;
+    let config = AppConfig::new("dev", "test", false, false);
+
+    let _ = spm_runner::commands::install::run(args, config, &mut buffer).await;
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -140,16 +141,15 @@ async fn one_step_strategy_with_scripts() {
     let args = RunArguments {
         application: "Suri",
         infra: "AWS",
-        dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
-        project: "test",
-        env: "dev",
     };
 
     let mut buffer = Vec::new();
 
-    let env_vars = spm_runner::commands::install::run(args, &mut buffer)
+    let config = AppConfig::new("dev", "test", false, false);
+
+    let env_vars = spm_runner::commands::install::run(args, config, &mut buffer)
         .await
         .unwrap_or_default();
 
@@ -231,16 +231,15 @@ async fn two_one_step_strategy_with_scripts() {
     let args = RunArguments {
         application: "Suri",
         infra: "AWS",
-        dry: false,
         user_params: &empty_user_params,
         registry_config: &registry_config,
-        project: "test",
-        env: "dev",
     };
 
     let mut buffer = Vec::new();
 
-    let env_vars = spm_runner::commands::install::run(args, &mut buffer)
+    let config = AppConfig::new("dev", "test", false, false);
+
+    let env_vars = spm_runner::commands::install::run(args, config, &mut buffer)
         .await
         .unwrap_or_default();
 
