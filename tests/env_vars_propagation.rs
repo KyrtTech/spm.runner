@@ -33,12 +33,13 @@ async fn test_no_strategy_found() {
         application: "Suri",
         infra: "AWS",
         user_params: &empty_user_params,
-        registry_config: &registry_config,
     };
 
     let config = AppConfig::new("dev", "test", false, false);
 
-    let _ = spm_runner::commands::install::run(args, config, &mut buffer).await;
+    let install =
+        spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
+    let _ = install.run(args).await;
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -80,12 +81,13 @@ async fn one_step_strategy_no_scripts() {
         application: "Suri",
         infra: "AWS",
         user_params: &empty_user_params,
-        registry_config: &registry_config,
     };
 
     let config = AppConfig::new("dev", "test", false, false);
 
-    let _ = spm_runner::commands::install::run(args, config, &mut buffer).await;
+    let install =
+        spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
+    let _ = install.run(args).await;
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -142,16 +144,15 @@ async fn one_step_strategy_with_scripts() {
         application: "Suri",
         infra: "AWS",
         user_params: &empty_user_params,
-        registry_config: &registry_config,
     };
 
     let mut buffer = Vec::new();
 
     let config = AppConfig::new("dev", "test", false, false);
 
-    let env_vars = spm_runner::commands::install::run(args, config, &mut buffer)
-        .await
-        .unwrap_or_default();
+    let install =
+        spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
+    let env_vars = install.run(args).await.unwrap_or_default();
 
     let output = String::from_utf8_lossy(&buffer);
 
@@ -232,16 +233,15 @@ async fn two_one_step_strategy_with_scripts() {
         application: "Suri",
         infra: "AWS",
         user_params: &empty_user_params,
-        registry_config: &registry_config,
     };
 
     let mut buffer = Vec::new();
 
     let config = AppConfig::new("dev", "test", false, false);
 
-    let env_vars = spm_runner::commands::install::run(args, config, &mut buffer)
-        .await
-        .unwrap_or_default();
+    let install =
+        spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
+    let env_vars = install.run(args).await.unwrap_or_default();
 
     let output = String::from_utf8_lossy(&buffer);
 
