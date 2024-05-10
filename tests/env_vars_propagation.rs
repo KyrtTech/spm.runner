@@ -65,6 +65,7 @@ async fn one_step_strategy_no_scripts() {
          "uri": "http://something.com",
          "description": "Some description",
          "optionalParams": [],
+         "alternatives": [],
          "scripts": []
         }]"#,
         )
@@ -108,6 +109,7 @@ async fn one_step_strategy_with_scripts() {
         "uri": "http://something.com",
         "description": "Some description",
         "optionalParams": [],
+        "alternatives": [],
         "scripts": ["{}"]
        }}]"#,
         strategy_url
@@ -179,12 +181,14 @@ async fn two_one_step_strategy_with_scripts() {
         "uri": "http://something.com",
         "description": "Some description 1",
         "optionalParams": [],
+        "alternatives": [],
         "scripts": ["{}"]
        }}, {{
         "title": "Some title 2",
         "uri": "http://something2.com",
         "description": "Some description 2",
         "optionalParams": [],
+        "alternatives": [],
         "scripts": ["{}"]
        }}]"#,
         strategy_url_1, strategy_url_2
