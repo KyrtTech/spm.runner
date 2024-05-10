@@ -124,72 +124,6 @@ fn consolidate_script_output(
     Ok(())
 }
 
-async fn run_strategy<W: Write>(
-    strategy: &InstallStrategyResponse,
-    env_vars: &HashMap<String, String>,
-    app_config: &AppConfig<'_>,
-    writer: &mut W,
-) -> anyhow::Result<Vec<InstallStrategyOutput>> {
-    let _ = writeln!(writer, "Using strategy '{}'", strategy.title);
-
-    let paths = download_scripts(&strategy.scripts)
-        .await
-        .unwrap_or_default();
-
-    let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
-
-    let output_params_files: Vec<Option<NamedTempFile>> = filter_paths
-        .iter()
-        .map(|_| NamedTempFile::new().ok())
-        .collect();
-
-    let mut all_outputs: Vec<InstallStrategyOutput> = vec![];
-
-    for (index, file) in filter_paths.iter().enumerate() {
-        //  need a temp directory where to run the script
-        let cwd = TempDir::new();
-        let cwd_path = match cwd {
-            Ok(ref c) => c.path().to_str().unwrap_or_default().to_string(),
-            Err(_) => "".to_string(),
-        };
-
-        let mut permissions = file.as_file().metadata()?.permissions();
-        permissions.set_mode(0o755);
-
-        std::fs::set_permissions(file.path(), permissions).ok();
-
-        let mut command = Command::new(file.path());
-        command.current_dir(&cwd_path).stdout(Stdio::inherit());
-
-        let output_path = match output_params_files[index] {
-            Some(ref tmp) => tmp.path().to_str().unwrap_or_default().to_string(),
-            None => "".to_string(),
-        };
-
-        command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
-        //  add env vars to the scripts
-        env_vars.into_iter().for_each(|(k, v)| {
-            command.env(k, v);
-        });
-
-        if app_config.dry_run() == false {
-            let mut child = command.spawn()?;
-
-            child.wait().ok();
-        }
-
-        //  read the output file if present
-        let output_data = match output_params_files[index] {
-            Some(ref tmp) => serde_json::from_reader(tmp).unwrap_or_default(),
-            None => InstallStrategyOutput::default(),
-        };
-
-        let _ = consolidate_script_output(output_data, &mut all_outputs, &cwd_path);
-    }
-
-    return Ok(all_outputs);
-}
-
 fn save_env_vars(env: &HashMap<String, String>, index: u16) {
     if let Ok(serialized) = serde_json::to_string(env) {
         if let Ok(mut file) = File::create(format!(
@@ -234,99 +168,186 @@ pub struct RunArguments<'a> {
     pub application: &'a str,
     pub infra: &'a str,
     pub user_params: &'a UserOptionalParams,
-    pub registry_config: &'a RegistryConfig,
 }
 
-pub async fn run<W: Write>(
-    args: RunArguments<'_>,
-    app_config: AppConfig<'_>,
-    writer: &mut W,
-) -> anyhow::Result<HashMap<String, String>> {
-    let mut strategies = vec![];
-    let mut env_vars = HashMap::<String, String>::new();
+pub struct Install<'a, W: Write> {
+    app_config: AppConfig<'a>,
+    registry_config: &'a RegistryConfig,
+    writer: &'a mut W,
+}
 
-    //  add default env vars
-    env_vars.insert("SPM_PROJECT".to_string(), app_config.project().to_string());
-    env_vars.insert("SPM_ENV".to_string(), app_config.env().to_string());
-
-    match do_install(args.application, args.infra, args.registry_config, writer).await {
-        Ok(str) => strategies = str,
-        Err(err) => eprintln!("{}", err),
-    }
-
-    if app_config.dry_run() {
-        let _ = writeln!(
+impl<'a, W: Write> Install<'a, W> {
+    pub fn new(app_config: AppConfig<'a>, registry: &'a RegistryConfig, writer: &'a mut W) -> Self {
+        Install {
+            app_config,
+            registry_config: registry,
             writer,
-            "Using env vars: {}",
-            serde_json::to_string_pretty(&env_vars).unwrap_or_default()
-        );
-        let _ = writeln!(
-            writer,
-            "{}",
-            serde_json::to_string_pretty(&strategies).unwrap_or_default()
-        );
-    }
-
-    if strategies.len() == 0 {
-        let _ = writeln!(writer, "No valid install strategies found");
-        return Ok(env_vars);
-    }
-
-    //  init persistent output directory
-    fs::create_dir_all(defaults::OUTPUT_FOLDER)?;
-
-    let mut index = 0;
-
-    for strategy in strategies {
-        if let Some(download_url) = &strategy.download_url {
-            env_vars.insert(String::from("DOWNLOAD_URL"), download_url.clone());
         }
+    }
 
-        save_env_vars(&env_vars, index);
+    async fn run_strategy(
+        &mut self,
+        strategy: &InstallStrategyResponse,
+        env_vars: &HashMap<String, String>,
+    ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
+        let _ = writeln!(self.writer, "Using strategy '{}'", strategy.title);
 
-        let user_params = move_user_params_for_strategy(&args.user_params, &strategy.uri);
-
-        //  will move temp files in this vec
-        //  we only send the path, so the file
-        //  would go out of scope and be deleted
-        let mut temp_files: Vec<NamedTempFile> = vec![];
-
-        //  extend env_vars with the user provided
-        let mut env_vars_with_user = env_vars.clone();
-        env_vars_with_user.extend(user_params.into_iter().map(|(key, file)| {
-            let path = file.path().to_str().unwrap_or_default().to_string();
-            temp_files.push(file);
-            return (key, path);
-        }));
-
-        let all_outputs = run_strategy(&strategy, &env_vars_with_user, &app_config, writer)
+        let paths = download_scripts(&strategy.scripts)
             .await
             .unwrap_or_default();
 
-        if all_outputs.len() != 0 {
-            env_vars.extend(
-                (&all_outputs[0].output_params)
-                    .into_iter()
-                    .map(|(k, v)| (k.to_shouty_snake_case(), v.clone())),
-            );
+        let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
 
-            match serde_json::to_string(&all_outputs) {
-                Ok(json) => writeln!(writer, "All output: {}", json).unwrap_or(()),
-                Err(e) => writeln!(writer, "All output error: {}", e).unwrap_or(()),
+        let output_params_files: Vec<Option<NamedTempFile>> = filter_paths
+            .iter()
+            .map(|_| NamedTempFile::new().ok())
+            .collect();
+
+        let mut all_outputs: Vec<InstallStrategyOutput> = vec![];
+
+        for (index, file) in filter_paths.iter().enumerate() {
+            //  need a temp directory where to run the script
+            let cwd = TempDir::new();
+            let cwd_path = match cwd {
+                Ok(ref c) => c.path().to_str().unwrap_or_default().to_string(),
+                Err(_) => "".to_string(),
+            };
+
+            let mut permissions = file.as_file().metadata()?.permissions();
+            permissions.set_mode(0o755);
+
+            std::fs::set_permissions(file.path(), permissions).ok();
+
+            let mut command = Command::new(file.path());
+            command.current_dir(&cwd_path).stdout(Stdio::inherit());
+
+            let output_path = match output_params_files[index] {
+                Some(ref tmp) => tmp.path().to_str().unwrap_or_default().to_string(),
+                None => "".to_string(),
+            };
+
+            command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
+            //  add env vars to the scripts
+            env_vars.into_iter().for_each(|(k, v)| {
+                command.env(k, v);
+            });
+
+            if self.app_config.dry_run() == false {
+                let mut child = command.spawn()?;
+
+                child.wait().ok();
             }
+
+            //  read the output file if present
+            let output_data = match output_params_files[index] {
+                Some(ref tmp) => serde_json::from_reader(tmp).unwrap_or_default(),
+                None => InstallStrategyOutput::default(),
+            };
+
+            let _ = consolidate_script_output(output_data, &mut all_outputs, &cwd_path);
         }
 
-        index += 1;
+        return Ok(all_outputs);
     }
 
-    let _ = writeln!(writer, "Final env vars: ");
-    let _ = writeln!(
-        writer,
-        "{}",
-        serde_json::to_string_pretty(&env_vars).unwrap_or_default()
-    );
+    pub async fn run(mut self, args: RunArguments<'_>) -> anyhow::Result<HashMap<String, String>> {
+        let mut strategies = vec![];
+        let mut env_vars = HashMap::<String, String>::new();
 
-    save_env_vars(&env_vars, index);
+        //  add default env vars
+        env_vars.insert(
+            "SPM_PROJECT".to_string(),
+            self.app_config.project().to_string(),
+        );
+        env_vars.insert("SPM_ENV".to_string(), self.app_config.env().to_string());
 
-    Ok(env_vars)
+        match do_install(
+            args.application,
+            args.infra,
+            self.registry_config,
+            self.writer,
+        )
+        .await
+        {
+            Ok(str) => strategies = str,
+            Err(err) => eprintln!("{}", err),
+        }
+
+        if self.app_config.dry_run() {
+            let _ = writeln!(
+                self.writer,
+                "Using env vars: {}",
+                serde_json::to_string_pretty(&env_vars).unwrap_or_default()
+            );
+            let _ = writeln!(
+                self.writer,
+                "{}",
+                serde_json::to_string_pretty(&strategies).unwrap_or_default()
+            );
+        }
+
+        if strategies.len() == 0 {
+            let _ = writeln!(self.writer, "No valid install strategies found");
+            return Ok(env_vars);
+        }
+
+        //  init persistent output directory
+        fs::create_dir_all(defaults::OUTPUT_FOLDER)?;
+
+        let mut index = 0;
+
+        for strategy in strategies {
+            if let Some(download_url) = &strategy.download_url {
+                env_vars.insert(String::from("DOWNLOAD_URL"), download_url.clone());
+            }
+
+            save_env_vars(&env_vars, index);
+
+            let user_params = move_user_params_for_strategy(&args.user_params, &strategy.uri);
+
+            //  will move temp files in this vec
+            //  we only send the path, so the file
+            //  would go out of scope and be deleted
+            let mut temp_files: Vec<NamedTempFile> = vec![];
+
+            //  extend env_vars with the user provided
+            let mut env_vars_with_user = env_vars.clone();
+            env_vars_with_user.extend(user_params.into_iter().map(|(key, file)| {
+                let path = file.path().to_str().unwrap_or_default().to_string();
+                temp_files.push(file);
+                return (key, path);
+            }));
+
+            let all_outputs = self
+                .run_strategy(&strategy, &env_vars_with_user)
+                .await
+                .unwrap_or_default();
+
+            if all_outputs.len() != 0 {
+                env_vars.extend(
+                    (&all_outputs[0].output_params)
+                        .into_iter()
+                        .map(|(k, v)| (k.to_shouty_snake_case(), v.clone())),
+                );
+
+                match serde_json::to_string(&all_outputs) {
+                    Ok(json) => writeln!(self.writer, "All output: {}", json).unwrap_or(()),
+                    Err(e) => writeln!(self.writer, "All output error: {}", e).unwrap_or(()),
+                }
+            }
+
+            index += 1;
+        }
+
+        let _ = writeln!(self.writer, "Final env vars: ");
+        let _ = writeln!(
+            self.writer,
+            "{}",
+            serde_json::to_string_pretty(&env_vars).unwrap_or_default()
+        );
+
+        save_env_vars(&env_vars, index);
+
+        Ok(env_vars)
+    }
 }

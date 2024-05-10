@@ -32,10 +32,12 @@ async fn main() -> anyhow::Result<()> {
                 application: &application,
                 infra: &infra,
                 user_params: &params,
-                registry_config: &registry_config
             };
 
-            let _ = commands::install::run(run_args, app_config,&mut stdout()).await;
+            let writer = &mut stdout();
+
+            let install = commands::install::Install::new(app_config, &registry_config, writer);
+            let _ = install.run(run_args).await;
         }
         cli::Commands::Search { name, category } => {
             let _ = commands::search::run(&name, category, &registry_config);
