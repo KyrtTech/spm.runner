@@ -10,29 +10,9 @@ use heck::ToShoutySnakeCase;
 
 use tempfile::{NamedTempFile, TempDir};
 
+use crate::registry_api::install::{find_install_strategy, InstallStrategyResponse};
 use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct InstallStrategyArgument {
-    name: String,
-    param: String,
-    description: Option<String>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct InstallStrategyResponse {
-    title: String,
-    description: String,
-    uri: String,
-    scripts: Vec<String>,
-    #[serde(rename = "downloadURL")]
-    download_url: Option<String>,
-    runner: Option<String>,
-    #[serde(rename = "optionalParams")]
-    optional_params: Vec<InstallStrategyArgument>,
-    alternatives: Vec<InstallStrategyResponse>,
-}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct InstallStrategyOutput {
@@ -45,34 +25,6 @@ impl Default for InstallStrategyOutput {
             output_params: HashMap::new(),
         }
     }
-}
-
-async fn do_install<W: Write>(
-    app_name: &str,
-    infra: &str,
-    config: &RegistryConfig,
-    writer: &mut W,
-) -> anyhow::Result<Vec<InstallStrategyResponse>> {
-    let mut install_url = config.get_url().join("find-install-strategy")?;
-
-    let url_with_query = install_url
-        .query_pairs_mut()
-        .append_pair("application", app_name)
-        .append_pair("infra", infra)
-        .finish();
-
-    let _ = writeln!(
-        writer,
-        "Doing install for: {}, {}. Using url {}",
-        app_name, infra, url_with_query
-    );
-
-    let response = reqwest::get(url_with_query.as_ref())
-        .await?
-        .json::<Vec<InstallStrategyResponse>>()
-        .await?;
-
-    Ok(response)
 }
 
 async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<NamedTempFile>>> {
@@ -190,9 +142,9 @@ impl<'a, W: Write> Install<'a, W> {
         strategy: &InstallStrategyResponse,
         env_vars: &HashMap<String, String>,
     ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
-        let _ = writeln!(self.writer, "Using strategy '{}'", strategy.title);
+        let _ = writeln!(self.writer, "Using strategy '{}'", strategy.title());
 
-        let paths = download_scripts(&strategy.scripts)
+        let paths = download_scripts(&strategy.scripts())
             .await
             .unwrap_or_default();
 
@@ -261,7 +213,7 @@ impl<'a, W: Write> Install<'a, W> {
         );
         env_vars.insert("SPM_ENV".to_string(), self.app_config.env().to_string());
 
-        match do_install(
+        match find_install_strategy(
             args.application,
             args.infra,
             self.registry_config,
@@ -297,13 +249,13 @@ impl<'a, W: Write> Install<'a, W> {
         let mut index = 0;
 
         for strategy in strategies {
-            if let Some(download_url) = &strategy.download_url {
+            if let Some(download_url) = &strategy.download_url() {
                 env_vars.insert(String::from("DOWNLOAD_URL"), download_url.clone());
             }
 
             save_env_vars(&env_vars, index);
 
-            let user_params = move_user_params_for_strategy(&args.user_params, &strategy.uri);
+            let user_params = move_user_params_for_strategy(&args.user_params, strategy.uri());
 
             //  will move temp files in this vec
             //  we only send the path, so the file
