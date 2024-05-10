@@ -127,6 +127,7 @@ fn consolidate_script_output(
 async fn run_strategy<W: Write>(
     strategy: &InstallStrategyResponse,
     env_vars: &HashMap<String, String>,
+    app_config: &AppConfig<'_>,
     writer: &mut W,
 ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
     let _ = writeln!(writer, "Using strategy '{}'", strategy.title);
@@ -171,9 +172,11 @@ async fn run_strategy<W: Write>(
             command.env(k, v);
         });
 
-        let mut child = command.spawn()?;
+        if app_config.dry_run() == false {
+            let mut child = command.spawn()?;
 
-        child.wait().ok();
+            child.wait().ok();
+        }
 
         //  read the output file if present
         let output_data = match output_params_files[index] {
@@ -296,7 +299,7 @@ pub async fn run<W: Write>(
             return (key, path);
         }));
 
-        let all_outputs = run_strategy(&strategy, &env_vars_with_user, writer)
+        let all_outputs = run_strategy(&strategy, &env_vars_with_user, &app_config, writer)
             .await
             .unwrap_or_default();
 
