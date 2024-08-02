@@ -38,7 +38,7 @@ pub enum Commands {
         dry: bool,
 
         /// Project name
-        #[arg(short, long, default_value = "SMP")]
+        #[arg(short, long, default_value = "SPM")]
         project: String,
 
         /// Environment

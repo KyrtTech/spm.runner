@@ -132,7 +132,7 @@ async fn one_step_strategy_with_scripts() {
         .with_body(
             r#"#!/bin/sh
           output_params="{\"output_params\": {\"url\": \"http://localhost:8080\"}}"
-          echo $output_params > "${SMP_OUTPUT_PATH}"
+          echo $output_params > "${SPM_OUTPUT_PATH}"
           "#,
         )
         .create_async()
@@ -211,7 +211,7 @@ async fn two_one_step_strategy_with_scripts() {
         .with_body(
             r#"#!/bin/sh
           output_params="{\"output_params\": {\"url\": \"http://localhost:8080\"}}"
-          echo $output_params > "${SMP_OUTPUT_PATH}"
+          echo $output_params > "${SPM_OUTPUT_PATH}"
           "#,
         )
         .create_async()
@@ -223,7 +223,7 @@ async fn two_one_step_strategy_with_scripts() {
         .with_body(
             r#"#!/bin/sh
           output_params="{\"output_params\": {\"ip\": \"127.0.0.1\"}}"
-          echo $output_params > "${SMP_OUTPUT_PATH}"
+          echo $output_params > "${SPM_OUTPUT_PATH}"
           "#,
         )
         .create_async()
