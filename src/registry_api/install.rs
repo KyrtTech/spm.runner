@@ -10,11 +10,31 @@ pub struct InstallStrategyArgument {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct InstallStrategySupportFile {
+    #[serde(rename = "accessUrl")]
+    access_url: String,
+    #[serde(rename = "localPath")]
+    local_path: String,
+}
+
+impl InstallStrategySupportFile {
+    pub fn access_url(&self) -> &String {
+        &self.access_url
+    }
+
+    pub fn local_path(&self) -> &String {
+        &self.local_path
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct InstallStrategyResponse {
     title: String,
     description: String,
     uri: String,
     scripts: Vec<String>,
+    #[serde(rename = "supportFiles")]
+    support_files: Vec<InstallStrategySupportFile>,
     #[serde(rename = "downloadURL")]
     download_url: Option<String>,
     runner: Option<String>,
@@ -38,6 +58,10 @@ impl InstallStrategyResponse {
 
     pub fn scripts(&self) -> &Vec<String> {
         &self.scripts
+    }
+
+    pub fn support_files(&self) -> &Vec<InstallStrategySupportFile> {
+        &self.support_files
     }
 }
 

@@ -3,6 +3,7 @@ use std::{
     fs::{self, File},
     io::Write,
     os::unix::fs::PermissionsExt,
+    path::Path,
     process::{Command, Stdio},
 };
 
@@ -10,7 +11,9 @@ use heck::ToShoutySnakeCase;
 
 use tempfile::{NamedTempFile, TempDir};
 
-use crate::registry_api::install::{find_install_strategy, InstallStrategyResponse};
+use crate::registry_api::install::{
+    find_install_strategy, InstallStrategyResponse, InstallStrategySupportFile,
+};
 use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 
@@ -27,12 +30,15 @@ impl Default for InstallStrategyOutput {
     }
 }
 
-async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<NamedTempFile>>> {
+async fn download_scripts(
+    scripts: &Vec<String>,
+    parent: &String,
+) -> anyhow::Result<Vec<Option<NamedTempFile>>> {
     let scripts_futures = scripts.iter().map(|url| async move {
         let response = reqwest::get(url).await.unwrap();
 
         if response.status().is_success() {
-            if let Ok(mut file) = tempfile::NamedTempFile::new() {
+            if let Ok(mut file) = tempfile::Builder::new().tempfile_in(parent) {
                 let bytes = response.bytes().await.unwrap_or_default();
 
                 file.write_all(&bytes).ok();
@@ -47,6 +53,44 @@ async fn download_scripts(scripts: &Vec<String>) -> anyhow::Result<Vec<Option<Na
     let script_paths = futures::future::join_all(scripts_futures).await;
 
     Ok(script_paths)
+}
+
+async fn download_files(
+    files: &Vec<InstallStrategySupportFile>,
+    parent: &Path,
+) -> anyhow::Result<()> {
+    let files_futures = files.iter().map(|remote_file| async move {
+        let response = reqwest::get(remote_file.access_url()).await.unwrap();
+
+        if response.status().is_success() {
+            let bytes = response.bytes().await.unwrap_or_default();
+
+            let path = match std::path::absolute(parent.join(remote_file.local_path())) {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+
+            //  you are constrained by the power of the file system
+            //  check if the path is outside of parent
+            if !path.starts_with(parent) {
+                return;
+            }
+
+            if let Some(path) = path.parent() {
+                let _ = fs::create_dir_all(path);
+            }
+
+            let file = File::create(path);
+
+            if let Ok(mut file) = file {
+                let _ =file.write(&bytes);
+            }
+        }
+    });
+
+    futures::future::join_all(files_futures).await;
+
+    Ok(())
 }
 
 fn consolidate_script_output(
@@ -144,9 +188,19 @@ impl<'a, W: Write> Install<'a, W> {
     ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
         let _ = writeln!(self.writer, "Using strategy '{}'", strategy.title());
 
-        let paths = download_scripts(&strategy.scripts())
+        //  need a temp directory where to run the script
+        let cwd = TempDir::new();
+        let cwd_path = match cwd {
+            Ok(ref c) => c.path().to_str().unwrap_or_default().to_string(),
+            Err(_) => "".to_string(),
+        };
+
+        let paths = download_scripts(&strategy.scripts(), &cwd_path)
             .await
             .unwrap_or_default();
+
+        //  download the support files
+        let _ = download_files(&strategy.support_files(), &Path::new(&cwd_path)).await;
 
         let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
 
@@ -158,13 +212,6 @@ impl<'a, W: Write> Install<'a, W> {
         let mut all_outputs: Vec<InstallStrategyOutput> = vec![];
 
         for (index, file) in filter_paths.iter().enumerate() {
-            //  need a temp directory where to run the script
-            let cwd = TempDir::new();
-            let cwd_path = match cwd {
-                Ok(ref c) => c.path().to_str().unwrap_or_default().to_string(),
-                Err(_) => "".to_string(),
-            };
-
             let mut permissions = file.as_file().metadata()?.permissions();
             permissions.set_mode(0o755);
 
