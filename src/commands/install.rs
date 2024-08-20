@@ -58,8 +58,8 @@ async fn download_scripts(
 async fn download_files(
     files: &Vec<InstallStrategySupportFile>,
     parent: &Path,
-) -> anyhow::Result<()> {
-    let files_futures = files.iter().map(|remote_file| async move {
+) -> Vec<Result<(), String>> {
+    let files_futures: Vec<_> = files.iter().map(|remote_file| async {
         let response = reqwest::get(remote_file.access_url()).await.unwrap();
 
         if response.status().is_success() {
@@ -67,13 +67,13 @@ async fn download_files(
 
             let path = match std::path::absolute(parent.join(remote_file.local_path())) {
                 Ok(p) => p,
-                Err(_) => return,
+                Err(err) => return Err(format!("Failed to compute absolute path {}", err)),
             };
 
             //  you are constrained by the power of the file system
             //  check if the path is outside of parent
             if !path.starts_with(parent) {
-                return;
+                return Err(format!("Trying to break the file system containment {}", path.display()))
             }
 
             if let Some(path) = path.parent() {
@@ -85,12 +85,18 @@ async fn download_files(
             if let Ok(mut file) = file {
                 let _ = file.write(&bytes);
             }
+
+            Ok(())
+        } else {
+            eprintln!("Could not download file {}", remote_file.access_url());
+
+            Err(format!("Failed to download file {}.", remote_file.access_url()))
         }
-    });
+    }).collect();
 
-    futures::future::join_all(files_futures).await;
+    let results: Vec<Result<(), String>> = futures::future::join_all(files_futures).await;
 
-    Ok(())
+    return results
 }
 
 fn consolidate_script_output(
