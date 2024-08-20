@@ -83,7 +83,7 @@ async fn download_files(
             let file = File::create(path);
 
             if let Ok(mut file) = file {
-                let _ =file.write(&bytes);
+                let _ = file.write(&bytes);
             }
         }
     });
@@ -232,9 +232,15 @@ impl<'a, W: Write> Install<'a, W> {
             });
 
             if self.app_config.dry_run() == false {
-                let mut child = command.spawn()?;
-
-                child.wait().ok();
+                match command.spawn() {
+                    Ok(mut child) => match child.wait() {
+                        Ok(_) => println!("InstallStrategy executed successfully."),
+                        Err(err) => println!("InstallStrategy failed with error {}", err),
+                    },
+                    Err(err) => {
+                        eprintln!("Child process failed to start with error {}", err);
+                    }
+                };
             }
 
             //  read the output file if present
