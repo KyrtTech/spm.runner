@@ -33,21 +33,25 @@ impl Default for InstallStrategyOutput {
 async fn download_scripts(
     scripts: &Vec<String>,
     parent: &String,
-) -> anyhow::Result<Vec<Option<NamedTempFile>>> {
+) -> anyhow::Result<Vec<Result<NamedTempFile, String>>> {
     let scripts_futures = scripts.iter().map(|url| async move {
         let response = reqwest::get(url).await.unwrap();
 
         if response.status().is_success() {
-            if let Ok(mut file) = tempfile::Builder::new().tempfile_in(parent) {
-                let bytes = response.bytes().await.unwrap_or_default();
+            match tempfile::Builder::new().tempfile_in(parent) {
+                Ok(mut file) => {
+                    let bytes = response.bytes().await.unwrap_or_default();
 
-                file.write_all(&bytes).ok();
+                    file.write_all(&bytes).ok();
 
-                return Some(file);
+                    return Ok(file);
+                }
+                Err(err) => Err(format!("{}", err)),
             }
+        } else {
+            eprintln!("Error downloading install script {}", url);
+            Err(format!("Download install file failed {}", url))
         }
-
-        None
     });
 
     let script_paths = futures::future::join_all(scripts_futures).await;
@@ -217,7 +221,7 @@ impl<'a, W: Write> Install<'a, W> {
         //  download the support files
         let _ = download_files(&strategy.support_files(), &Path::new(&cwd_path)).await;
 
-        let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p).collect();
+        let filter_paths: Vec<NamedTempFile> = paths.into_iter().filter_map(|p| p.ok()).collect();
 
         let output_params_files: Vec<Option<NamedTempFile>> = filter_paths
             .iter()
