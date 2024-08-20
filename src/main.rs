@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let params = optional_params::load_optional_params(&user_params);
 
-            let app_config = AppConfig::new(&project, &env, dry, false);
+            let app_config = AppConfig::new(&env, &project, dry, false);
 
             let run_args = RunArguments {
                 application: &application,
