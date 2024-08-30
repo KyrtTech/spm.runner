@@ -12,7 +12,7 @@ use heck::ToShoutySnakeCase;
 use tempfile::{NamedTempFile, TempDir};
 
 use crate::registry_api::install::{
-    find_install_strategy, InstallStrategyResponse, InstallStrategySupportFile,
+    find_install_strategy, PlanInstallStrategyResponse, InstallStrategySupportFile,
 };
 use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
@@ -202,7 +202,7 @@ impl<'a, W: Write> Install<'a, W> {
 
     async fn run_strategy(
         &mut self,
-        strategy: &InstallStrategyResponse,
+        strategy: &PlanInstallStrategyResponse,
         env_vars: &HashMap<String, String>,
     ) -> anyhow::Result<Vec<InstallStrategyOutput>> {
         let _ = writeln!(self.writer, "Using strategy '{}'", strategy.title());

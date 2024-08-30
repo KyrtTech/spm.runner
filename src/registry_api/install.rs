@@ -28,7 +28,7 @@ impl InstallStrategySupportFile {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct InstallStrategyResponse {
+pub struct PlanInstallStrategyResponse {
     title: String,
     description: String,
     uri: String,
@@ -40,10 +40,10 @@ pub struct InstallStrategyResponse {
     runner: Option<String>,
     #[serde(rename = "optionalParams")]
     optional_params: Vec<InstallStrategyArgument>,
-    alternatives: Vec<InstallStrategyResponse>,
+    alternatives: Vec<PlanInstallStrategyResponse>,
 }
 
-impl InstallStrategyResponse {
+impl PlanInstallStrategyResponse {
     pub fn title(&self) -> &String {
         &self.title
     }
@@ -70,7 +70,7 @@ pub async fn find_install_strategy<W: Write>(
     infra: &str,
     config: &RegistryConfig,
     writer: &mut W,
-) -> anyhow::Result<Vec<InstallStrategyResponse>> {
+) -> anyhow::Result<Vec<PlanInstallStrategyResponse>> {
     let mut install_url = config.get_url().join("find-install-strategy")?;
 
     let url_with_query = install_url
@@ -87,7 +87,7 @@ pub async fn find_install_strategy<W: Write>(
 
     let response = reqwest::get(url_with_query.as_ref())
         .await?
-        .json::<Vec<InstallStrategyResponse>>()
+        .json::<Vec<PlanInstallStrategyResponse>>()
         .await?;
 
     Ok(response)
