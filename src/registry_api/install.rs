@@ -33,6 +33,8 @@ pub struct PlanInstallStrategyResponse {
     description: String,
     uri: String,
     scripts: Vec<String>,
+    #[serde(rename="uninstallScripts")]
+    uninstall_scripts: Option<Vec<String>>,
     #[serde(rename = "supportFiles")]
     support_files: Vec<InstallStrategySupportFile>,
     #[serde(rename = "downloadURL")]
