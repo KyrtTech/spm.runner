@@ -73,7 +73,7 @@ pub async fn find_install_strategy<W: Write>(
     config: &RegistryConfig,
     writer: &mut W,
 ) -> anyhow::Result<Vec<PlanInstallStrategyResponse>> {
-    let mut install_url = config.get_url().join("find-install-strategy")?;
+    let mut install_url = config.get_url().join("find-install-plan")?;
 
     let url_with_query = install_url
         .query_pairs_mut()
