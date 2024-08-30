@@ -45,6 +45,16 @@ pub enum Commands {
         #[arg(short, long, default_value = "dev")]
         env: String,
     },
+    /// Removes a specified app from the desired infrastructure
+    Remove {
+        /// Name of the application
+        #[arg(short, long)]
+        strategy: String,
+
+        /// Dry run, returns the plan, but doesn't run it
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        dry: bool,
+    },
 }
 
 /// Enum for the
