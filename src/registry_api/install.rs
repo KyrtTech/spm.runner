@@ -28,12 +28,21 @@ impl InstallStrategySupportFile {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct DependencyParam {
+    r#type: String,
+    #[serde(rename = "minValue")]
+    min_value: String,
+    #[serde(rename = "recommendedValue")]
+    rec_value: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct PlanInstallStrategyResponse {
     title: String,
     description: String,
     uri: String,
     scripts: Vec<String>,
-    #[serde(rename="uninstallScripts")]
+    #[serde(rename = "uninstallScripts")]
     uninstall_scripts: Option<Vec<String>>,
     #[serde(rename = "supportFiles")]
     support_files: Vec<InstallStrategySupportFile>,
@@ -42,6 +51,8 @@ pub struct PlanInstallStrategyResponse {
     runner: Option<String>,
     #[serde(rename = "optionalParams")]
     optional_params: Vec<InstallStrategyArgument>,
+    #[serde(rename = "requirementParams")]
+    dependency_params: Vec<DependencyParam>,
     alternatives: Vec<PlanInstallStrategyResponse>,
 }
 
