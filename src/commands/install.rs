@@ -12,7 +12,7 @@ use heck::ToShoutySnakeCase;
 use tempfile::{NamedTempFile, TempDir};
 
 use crate::registry_api::install::{
-    find_install_strategy, PlanInstallStrategyResponse, InstallStrategySupportFile,
+    find_install_strategy, InstallStrategySupportFile, PlanInstallStrategyResponse,
 };
 use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
@@ -341,6 +341,20 @@ impl<'a, W: Write> Install<'a, W> {
                 temp_files.push(file);
                 return (key, path);
             }));
+
+            for param in strategy.dependency_params() {
+                let short_name = match param.spm_param().split("/").last() {
+                    Some(name) => name,
+                    None => "empty",
+                };
+
+                let shouty_name = short_name.to_shouty_snake_case();
+
+                env_vars_with_user
+                    .insert(format!("SPM_{shouty_name}_MIN"), param.min().to_string());
+                env_vars_with_user
+                    .insert(format!("SPM_{shouty_name}_REC"), param.rec().to_string());
+            }
 
             let all_outputs = self
                 .run_strategy(&strategy, &env_vars_with_user)

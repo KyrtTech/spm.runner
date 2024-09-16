@@ -34,6 +34,22 @@ pub struct DependencyParam {
     min_value: String,
     #[serde(rename = "recommendedValue")]
     rec_value: String,
+    #[serde(rename = "spmParam")]
+    spm_param: String,
+}
+
+impl DependencyParam {
+    pub fn min(&self) -> &String {
+        &self.min_value
+    }
+
+    pub fn rec(&self) -> &String {
+        &self.rec_value
+    }
+
+    pub fn spm_param(&self) -> &String {
+        &self.spm_param
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -75,6 +91,10 @@ impl PlanInstallStrategyResponse {
 
     pub fn support_files(&self) -> &Vec<InstallStrategySupportFile> {
         &self.support_files
+    }
+
+    pub fn dependency_params(&self) -> &Vec<DependencyParam> {
+        &self.dependency_params
     }
 }
 
