@@ -46,7 +46,7 @@ pub enum Commands {
         env: String,
 
         /// Should the system use minimum requirements when running an IS, default is false
-        #[arg(short, long, action = clap::ArgAction::SetFalse)]
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
         min_specs: bool,
     },
     /// Removes a specified app from the desired infrastructure
