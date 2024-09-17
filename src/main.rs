@@ -40,10 +40,16 @@ async fn main() -> anyhow::Result<()> {
             let install = commands::install::Install::new(app_config, &registry_config, writer);
             let _ = install.run(run_args).await;
         }
-        cli::Commands::Remove { strategy, dry } => {
+        cli::Commands::Remove {
+            strategy,
+            dry,
+            project,
+            env,
+        } => {
             let writer = &mut stdout();
 
-            let remove = commands::remove::Remove::new(dry, &registry_config, writer);
+            let remove =
+                commands::remove::Remove::new(dry, &registry_config, &project, &env, writer);
             let _ = remove.run(strategy).await;
         }
         cli::Commands::Search { name, category } => {

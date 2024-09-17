@@ -4,6 +4,7 @@ use crate::config::RegistryConfig;
 
 use super::install::{InstallStrategyArgument, InstallStrategySupportFile};
 
+static EMPTY_VEC: Vec<String> = vec![];
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct InstallStrategyResponse {
@@ -20,6 +21,23 @@ pub struct InstallStrategyResponse {
     runner: Option<String>,
     #[serde(rename = "optionalParams")]
     optional_params: Vec<InstallStrategyArgument>,
+}
+
+impl InstallStrategyResponse {
+    pub fn title(&self) -> &String {
+        &self.title
+    }
+
+    pub fn uninstall_scripts(&self) -> &Vec<String> {
+        match &self.uninstall_scripts {
+            Some(paths) => &paths,
+            None => &EMPTY_VEC,
+        }
+    }
+
+    pub fn support_files(&self) -> &Vec<InstallStrategySupportFile> {
+        &self.support_files
+    }
 }
 
 pub async fn search_install_strategy<W: Write>(
