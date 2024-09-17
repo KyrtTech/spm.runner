@@ -23,10 +23,11 @@ async fn main() -> anyhow::Result<()> {
             dry,
             project,
             env,
+            min_specs,
         } => {
             let params = optional_params::load_optional_params(&user_params);
 
-            let app_config = AppConfig::new(&env, &project, dry, false);
+            let app_config = AppConfig::new(&env, &project, dry, false, min_specs);
 
             let run_args = RunArguments {
                 application: &application,
@@ -39,10 +40,7 @@ async fn main() -> anyhow::Result<()> {
             let install = commands::install::Install::new(app_config, &registry_config, writer);
             let _ = install.run(run_args).await;
         }
-        cli::Commands::Remove {
-            strategy,
-            dry
-        } => {
+        cli::Commands::Remove { strategy, dry } => {
             let writer = &mut stdout();
 
             let remove = commands::remove::Remove::new(dry, &registry_config, writer);

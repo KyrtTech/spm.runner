@@ -350,10 +350,13 @@ impl<'a, W: Write> Install<'a, W> {
 
                 let shouty_name = short_name.to_shouty_snake_case();
 
-                env_vars_with_user
-                    .insert(format!("SPM_{shouty_name}_MIN"), param.min().to_string());
-                env_vars_with_user
-                    .insert(format!("SPM_{shouty_name}_REC"), param.rec().to_string());
+                if self.app_config.use_min_specs() {
+                    env_vars_with_user
+                        .insert(format!("SPM_{shouty_name}"), param.min().to_string());
+                } else {
+                    env_vars_with_user
+                        .insert(format!("SPM_{shouty_name}"), param.rec().to_string());
+                }
             }
 
             let all_outputs = self
