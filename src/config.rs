@@ -42,6 +42,7 @@ pub struct AppConfig<'a> {
     env: &'a str,
     project: &'a str,
     min_specs: bool,
+    verbose: bool,
 }
 
 impl AppConfig<'_> {
@@ -51,6 +52,7 @@ impl AppConfig<'_> {
         dry_run: bool,
         interactive: bool,
         min_specs: bool,
+        verbose: bool,
     ) -> AppConfig<'a> {
         AppConfig {
             dry_run,
@@ -58,6 +60,7 @@ impl AppConfig<'_> {
             env,
             project,
             min_specs,
+            verbose,
         }
     }
 
@@ -79,5 +82,9 @@ impl AppConfig<'_> {
 
     pub fn use_min_specs(&self) -> bool {
         self.min_specs
+    }
+
+    pub fn verbose(&self) -> bool {
+        self.verbose
     }
 }

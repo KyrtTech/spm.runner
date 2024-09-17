@@ -163,6 +163,11 @@ impl<'a, W: Write> Install<'a, W> {
             };
 
             command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
+
+            if self.app_config.verbose() {
+                println!("{:?}", env_vars)
+            }
+
             //  add env vars to the scripts
             env_vars.into_iter().for_each(|(k, v)| {
                 command.env(k, v);
