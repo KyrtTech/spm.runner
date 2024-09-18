@@ -35,7 +35,7 @@ async fn test_no_strategy_found() {
         user_params: &empty_user_params,
     };
 
-    let config = AppConfig::new("dev", "test", false, false);
+    let config = AppConfig::new("dev", "test", false, false, false, false);
 
     let install =
         spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
@@ -84,7 +84,7 @@ async fn one_step_strategy_no_scripts() {
         user_params: &empty_user_params,
     };
 
-    let config = AppConfig::new("dev", "test", false, false);
+    let config = AppConfig::new("dev", "test", false, false, false, false);
 
     let install =
         spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
@@ -150,7 +150,7 @@ async fn one_step_strategy_with_scripts() {
 
     let mut buffer = Vec::new();
 
-    let config = AppConfig::new("dev", "test", false, false);
+    let config = AppConfig::new("dev", "test", false, false, false, false);
 
     let install =
         spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
@@ -241,7 +241,7 @@ async fn two_one_step_strategy_with_scripts() {
 
     let mut buffer = Vec::new();
 
-    let config = AppConfig::new("dev", "test", false, false);
+    let config = AppConfig::new("dev", "test", false, false, false, false);
 
     let install =
         spm_runner::commands::install::Install::new(config, &registry_config, &mut buffer);
