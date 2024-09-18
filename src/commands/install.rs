@@ -162,9 +162,10 @@ impl<'a, W: Write> Install<'a, W> {
                 None => "".to_string(),
             };
 
-            command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, output_path);
+            command.env(defaults::SPM_OUTPUT_ENV_VAR_NAME, &output_path);
 
             if self.app_config.verbose() {
+                println!("Writing to file {}", output_path);
                 println!("{:?}", env_vars)
             }
 
