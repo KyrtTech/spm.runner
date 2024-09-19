@@ -8,6 +8,14 @@ use std::collections::HashMap;
 enum UriType {
     Inline,
     Path,
+    Reference
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[serde(rename_all = "lowercase")] // Use lowercase for the JSON representation
+enum UriExport {
+    File,
+    Env
 }
 
 // Define the structure for the payload
@@ -40,6 +48,10 @@ impl UriEntry {
                     Payload::Path(from) => fs::copy(from, path),
                     Payload::Json(_) => todo!(),
                 };
+            }
+            //  can't write to a file a reference
+            UriType::Reference => {
+             ()
             }
         }
     }
