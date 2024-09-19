@@ -239,6 +239,9 @@ impl<'a, W: Write> Install<'a, W> {
             return Ok(env_vars);
         }
 
+        //  clean up the output folder first
+        let _ = fs::remove_dir_all(defaults::OUTPUT_FOLDER);
+
         //  init persistent output directory
         fs::create_dir_all(defaults::OUTPUT_FOLDER)?;
 
