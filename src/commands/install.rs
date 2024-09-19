@@ -69,7 +69,7 @@ fn save_env_vars(env: &HashMap<String, String>, index: u16) {
     }
 }
 
-fn move_user_params_for_strategy(
+fn move_file_user_params_for_strategy(
     params: &UserOptionalParams,
     name: &str,
 ) -> HashMap<String, NamedTempFile> {
@@ -79,16 +79,20 @@ fn move_user_params_for_strategy(
     let mut ret: HashMap<String, NamedTempFile> = HashMap::new();
 
     strategy_params.keys().into_iter().for_each(|key| {
+        let param = match strategy_params.get(key) {
+            Some(param) => param,
+            None => {
+                eprintln!("Could not get user param {}", key);
+                return;
+            }
+        };
+
         let fragments = key.split("/").collect::<Vec<&str>>();
         let name = fragments.last().unwrap_or(&"");
         let some_file = NamedTempFile::new();
 
         if let Ok(file) = some_file {
-            let param_maybe = strategy_params.get(key);
-
-            if let Some(param) = param_maybe {
-                param.write_to_file(file.path().to_str().unwrap_or_default());
-            }
+            param.write_to_file(file.path().to_str().unwrap_or_default());
 
             ret.insert(name.to_string().to_shouty_snake_case(), file);
         }
@@ -254,7 +258,7 @@ impl<'a, W: Write> Install<'a, W> {
 
             save_env_vars(&env_vars, index);
 
-            let user_params = move_user_params_for_strategy(&args.user_params, strategy.uri());
+            let user_params = move_file_user_params_for_strategy(&args.user_params, strategy.uri());
 
             //  will move temp files in this vec
             //  we only send the path, so the file
