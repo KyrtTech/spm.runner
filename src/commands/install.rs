@@ -87,6 +87,10 @@ fn move_file_user_params_for_strategy(
             }
         };
 
+        if param.is_file() == false {
+            return;
+        }
+
         let fragments = key.split("/").collect::<Vec<&str>>();
         let name = fragments.last().unwrap_or(&"");
         let some_file = NamedTempFile::new();
