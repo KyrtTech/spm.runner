@@ -3,7 +3,7 @@ use std::fs;
 use serde_json;
 use std::collections::HashMap;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")] // Use lowercase for the JSON representation
 enum UriType {
     Inline,
@@ -57,6 +57,17 @@ impl UriEntry {
 
     pub fn is_file(&self) -> bool {
         self.export == UriExport::File
+    }
+
+    pub fn is_reference(&self) -> bool {
+        self.uri_type == UriType::Reference
+    }
+
+    pub fn payload(&self) -> String {
+        match &self.payload {
+            Payload::Path(val) => val.to_owned(),
+            Payload::Json(val) => serde_json::to_string(&val).unwrap_or_default(),
+        }
     }
 }
 

@@ -11,9 +11,12 @@ use heck::ToShoutySnakeCase;
 
 use tempfile::{NamedTempFile, TempDir};
 
-use crate::registry_api::install::{find_install_strategy, PlanInstallStrategyResponse};
 use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
+use crate::{
+    optional_params::UriEntry,
+    registry_api::install::{find_install_strategy, PlanInstallStrategyResponse},
+};
 
 use super::file::{download_files, download_scripts};
 
@@ -69,13 +72,57 @@ fn save_env_vars(env: &HashMap<String, String>, index: u16) {
     }
 }
 
-fn move_file_user_params_for_strategy(
-    params: &UserOptionalParams,
-    name: &str,
-) -> HashMap<String, NamedTempFile> {
-    let default = HashMap::new();
-    let strategy_params = params.get(name).unwrap_or(&default);
+fn add_env_user_params_for_strategy(
+    strategy_params: &HashMap<String, UriEntry>,
+    env: &mut HashMap<String, String>,
+) {
+    strategy_params.keys().into_iter().for_each(|key| {
+        let param = match strategy_params.get(key) {
+            Some(param) => param,
+            None => {
+                eprintln!("Could not get user param {}", key);
+                return;
+            }
+        };
 
+        if param.is_file() {
+            return;
+        }
+
+        let val = param.payload();
+
+        let fragments = key.split("/").collect::<Vec<&str>>();
+        let name = fragments.last().unwrap_or(&"");
+
+        match param.is_reference() {
+            true => {
+                let env_name = match val.split("/").collect::<Vec<&str>>().last() {
+                    Some(referenced_env) => referenced_env.to_string().to_shouty_snake_case(),
+                    None => return,
+                };
+
+                match env.get(&env_name) {
+                    Some(env_var) => {
+                        env.insert(name.to_string().to_shouty_snake_case(), env_var.to_string());
+                        ()
+                    }
+                    None => {
+                        eprintln!("Could not get env var {}", env_name);
+                        ()
+                    }
+                }
+            }
+            false => {
+                env.insert(name.to_string().to_shouty_snake_case(), val);
+                ()
+            }
+        }
+    })
+}
+
+fn move_file_user_params_for_strategy(
+    strategy_params: &HashMap<String, UriEntry>,
+) -> HashMap<String, NamedTempFile> {
     let mut ret: HashMap<String, NamedTempFile> = HashMap::new();
 
     strategy_params.keys().into_iter().for_each(|key| {
@@ -262,20 +309,26 @@ impl<'a, W: Write> Install<'a, W> {
 
             save_env_vars(&env_vars, index);
 
-            let user_params = move_file_user_params_for_strategy(&args.user_params, strategy.uri());
-
-            //  will move temp files in this vec
-            //  we only send the path, so the file
-            //  would go out of scope and be deleted
-            let mut temp_files: Vec<NamedTempFile> = vec![];
-
-            //  extend env_vars with the user provided
             let mut env_vars_with_user = env_vars.clone();
-            env_vars_with_user.extend(user_params.into_iter().map(|(key, file)| {
-                let path = file.path().to_str().unwrap_or_default().to_string();
-                temp_files.push(file);
-                return (key, path);
-            }));
+
+            //  parse env user params
+            if let Some(strategy_params) = &args.user_params.get(strategy.uri()) {
+                add_env_user_params_for_strategy(&strategy_params, &mut env_vars_with_user);
+
+                let user_params = move_file_user_params_for_strategy(&strategy_params);
+
+                //  will move temp files in this vec
+                //  we only send the path, so the file
+                //  would go out of scope and be deleted
+                let mut temp_files: Vec<NamedTempFile> = vec![];
+
+                //  extend env_vars with the user provided
+                env_vars_with_user.extend(user_params.into_iter().map(|(key, file)| {
+                    let path = file.path().to_str().unwrap_or_default().to_string();
+                    temp_files.push(file);
+                    return (key, path);
+                }));
+            }
 
             for param in strategy.dependency_params() {
                 let short_name = match param.spm_param().split("/").last() {
