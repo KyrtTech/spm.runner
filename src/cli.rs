@@ -58,7 +58,7 @@ pub enum Commands {
         interactive: bool,
 
         /// Local port for the web server
-        #[arg(long, requires = "interactive", default_value="8934")]
+        #[arg(long, requires = "interactive", default_value_t=crate::defaults::WEB_SERVER_DEFAULT_PORT)]
         port: u16
     },
     /// Removes a specified app from the desired infrastructure
