@@ -52,6 +52,14 @@ pub enum Commands {
         /// Verbose output
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         verbose: bool,
+
+        /// Runs the install in interactive mode, this will start an web server that can control the installation process
+        #[arg(long, short = 'w', action = clap::ArgAction::SetTrue)]
+        interactive: bool,
+
+        /// Local port for the web server
+        #[arg(long, requires = "interactive", default_value="8934")]
+        port: u16
     },
     /// Removes a specified app from the desired infrastructure
     Remove {

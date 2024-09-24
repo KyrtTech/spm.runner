@@ -4,7 +4,7 @@ use spm_runner::{
     cli,
     commands::{self, install::RunArguments},
     config::{AppConfig, RegistryConfig},
-    optional_params,
+    optional_params, web_server,
 };
 
 #[tokio::main]
@@ -24,11 +24,13 @@ async fn main() -> anyhow::Result<()> {
             project,
             env,
             min_specs,
-            verbose
+            verbose,
+            interactive,
+            port,
         } => {
             let params = optional_params::load_optional_params(&user_params);
 
-            let app_config = AppConfig::new(&env, &project, dry, false, min_specs, verbose);
+            let app_config = AppConfig::new(&env, &project, dry, interactive, min_specs, verbose);
 
             let run_args = RunArguments {
                 application: &application,
@@ -38,8 +40,20 @@ async fn main() -> anyhow::Result<()> {
 
             let writer = &mut stdout();
 
-            let install = commands::install::Install::new(app_config, &registry_config, writer);
-            let _ = install.run(run_args).await;
+            if interactive == true {
+                let web_server = match web_server::init::create(port) {
+                    Ok(web) => web,
+                    Err(e) => {
+                        eprintln!("Starting web server error: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let install = commands::install::Install::new(app_config, &registry_config, writer);
+                let _ = tokio::join!(install.run(run_args), web_server);
+            } else {
+                let _ = commands::install::Install::new(app_config, &registry_config, writer).run(run_args).await;
+            }
         }
         cli::Commands::Remove {
             strategy,
