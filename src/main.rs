@@ -1,4 +1,5 @@
 use std::io::stdout;
+use tokio::sync::mpsc;
 
 use spm_runner::{
     cli,
@@ -30,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let params = optional_params::load_optional_params(&user_params);
 
-            let app_config = AppConfig::new(&env, &project, dry, interactive, min_specs, verbose);
+            let mut app_config = AppConfig::new(&env, &project, dry, interactive, min_specs, verbose);
 
             let run_args = RunArguments {
                 application: &application,
@@ -41,13 +42,18 @@ async fn main() -> anyhow::Result<()> {
             let writer = &mut stdout();
 
             if interactive == true {
-                let web_server = match web_server::init::create(port) {
+                let (server_tx, mut server_rx) = mpsc::channel::<String>(2048);
+                let (client_tx, client_rx) = mpsc::channel::<String>(2048);
+
+                let web_server = match web_server::init::create(port, server_tx, client_rx) {
                     Ok(web) => web,
                     Err(e) => {
                         eprintln!("Starting web server error: {}", e);
                         std::process::exit(1);
                     }
                 };
+
+                app_config.set_channels(client_tx, &mut server_rx);
 
                 let install = commands::install::Install::new(app_config, &registry_config, writer);
                 let _ = tokio::join!(install.run(run_args), web_server);

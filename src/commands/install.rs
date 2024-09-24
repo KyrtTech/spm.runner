@@ -276,6 +276,15 @@ impl<'a, W: Write> Install<'a, W> {
             Err(err) => eprintln!("{}", err),
         }
 
+        //  want to pass this to the web server
+        //  and wait for a response from the user
+        if self.app_config.interactive() {
+            if let Some(comm) = self.app_config.comm() {
+                let _ = comm.sender().send(serde_json::to_string(&strategies).unwrap()).await;
+                let should_continue = comm.receiver().recv().await;
+            }
+        }
+
         if self.app_config.dry_run() {
             let _ = writeln!(
                 self.writer,
