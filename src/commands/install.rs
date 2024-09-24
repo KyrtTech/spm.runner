@@ -159,13 +159,13 @@ pub struct RunArguments<'a> {
 }
 
 pub struct Install<'a, W: Write> {
-    app_config: AppConfig<'a>,
+    app_config: AppConfig<'a, 'a>,
     registry_config: &'a RegistryConfig,
     writer: &'a mut W,
 }
 
 impl<'a, W: Write> Install<'a, W> {
-    pub fn new(app_config: AppConfig<'a>, registry: &'a RegistryConfig, writer: &'a mut W) -> Self {
+    pub fn new(app_config: AppConfig<'a, 'a>, registry: &'a RegistryConfig, writer: &'a mut W) -> Self {
         Install {
             app_config,
             registry_config: registry,

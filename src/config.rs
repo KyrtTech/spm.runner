@@ -1,5 +1,6 @@
 use reqwest::Url;
 use std::env;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
 pub struct RegistryConfig {
@@ -36,24 +37,40 @@ impl RegistryConfig {
     }
 }
 
-pub struct AppConfig<'a> {
+pub struct Comm<'a> {
+    sender: Sender<String>,
+    receiver: &'a mut Receiver<String>,
+}
+
+impl<'a> Comm<'a> {
+    pub fn sender(&self) -> &Sender<String> {
+        &self.sender
+    }
+
+    pub fn receiver(&mut self) -> &mut Receiver<String> {
+        self.receiver
+    }
+}
+
+pub struct AppConfig<'a, 'b> {
     dry_run: bool,
     interactive: bool,
     env: &'a str,
     project: &'a str,
     min_specs: bool,
     verbose: bool,
+    comm: Option<Comm<'b>>,
 }
 
-impl AppConfig<'_> {
-    pub fn new<'a>(
+impl<'a, 'b> AppConfig<'a, 'b> {
+    pub fn new(
         env: &'a str,
         project: &'a str,
         dry_run: bool,
         interactive: bool,
         min_specs: bool,
         verbose: bool,
-    ) -> AppConfig<'a> {
+    ) -> AppConfig<'a, 'b> {
         AppConfig {
             dry_run,
             interactive,
@@ -61,6 +78,7 @@ impl AppConfig<'_> {
             project,
             min_specs,
             verbose,
+            comm: None,
         }
     }
 
@@ -86,5 +104,13 @@ impl AppConfig<'_> {
 
     pub fn verbose(&self) -> bool {
         self.verbose
+    }
+
+    pub fn set_channels(&mut self, sender: Sender<String>, receiver: &'b mut Receiver<String>) {
+        self.comm = Some(Comm { receiver, sender });
+    }
+
+    pub fn comm(&mut self) -> Option<&mut Comm<'b>> {
+        self.comm.as_mut()
     }
 }
