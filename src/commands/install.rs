@@ -282,6 +282,8 @@ impl<'a, W: Write> Install<'a, W> {
             if let Some(comm) = self.app_config.comm() {
                 let _ = comm.sender().send(serde_json::to_string(&strategies).unwrap()).await;
                 let should_continue = comm.receiver().recv().await;
+
+                println!("{:?}", should_continue);
             }
         }
 
