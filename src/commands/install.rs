@@ -258,6 +258,24 @@ impl<'a, W: Write> Install<'a, W> {
         return Ok(all_outputs);
     }
 
+    async fn communicate_plan(&mut self, strategies: &Vec<PlanInstallStrategyResponse>) {
+        if self.app_config.interactive() {
+            if let Some(comm) = self.app_config.comm() {
+                let _ = comm
+                    .sender()
+                    .send(serde_json::to_string(&strategies).unwrap())
+                    .await;
+                loop {
+                    let should_continue = comm.receiver().recv().await;
+
+                    if should_continue == Some(interactive_protocol::START_JOB.to_string()) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     pub async fn run(mut self, args: RunArguments<'_>) -> anyhow::Result<HashMap<String, String>> {
         let mut strategies = vec![];
         let mut env_vars = HashMap::<String, String>::new();
@@ -283,21 +301,7 @@ impl<'a, W: Write> Install<'a, W> {
 
         //  want to pass this to the web server
         //  and wait for a response from the user
-        if self.app_config.interactive() {
-            if let Some(comm) = self.app_config.comm() {
-                let _ = comm
-                    .sender()
-                    .send(serde_json::to_string(&strategies).unwrap())
-                    .await;
-                loop {
-                    let should_continue = comm.receiver().recv().await;
-
-                    if should_continue == Some(interactive_protocol::START_JOB.to_string()) {
-                        break;
-                    }
-                }
-            }
-        }
+        self.communicate_plan(&strategies).await;
 
         if self.app_config.dry_run() {
             let _ = writeln!(
