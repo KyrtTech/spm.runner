@@ -11,10 +11,6 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::interactive_protocol;
 
-struct JobData {
-    strategies: String,
-}
-
 #[derive(Clone, Debug)]
 enum AppState {
     GettingPlan,
@@ -33,11 +29,12 @@ enum InternalMessage {
 struct AppData {
     state: AppState,
     sender: Sender<InternalMessage>,
+    strategies: String,
     initial_envs: Arc<HashMap<String, String>>,
 }
 
 #[get("/job")]
-async fn job(job_data: web::Data<Arc<Mutex<JobData>>>) -> impl Responder {
+async fn job(job_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
     let job_data = job_data.lock().unwrap();
 
     HttpResponse::Ok()
@@ -82,14 +79,10 @@ pub fn create(
 ) -> anyhow::Result<Server> {
     let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<InternalMessage>(32);
 
-    let job_data = Arc::new(Mutex::new(JobData {
-        strategies: "[]".to_string(),
-    }));
-    let job_data_comm = job_data.clone();
-
     let app_data = Arc::new(Mutex::new(AppData {
         sender: internal_tx,
         state: AppState::GettingPlan,
+        strategies: "[]".to_string(),
         initial_envs: Arc::new(HashMap::new()),
     }));
     let app_data_comm = app_data.clone();
@@ -97,13 +90,9 @@ pub fn create(
     let web_server = HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_data.clone()))
-            .service(
-                web::scope("")
-                    .app_data(web::Data::new(job_data.clone()))
-                    .service(job)
-                    .service(start_job)
-                    .service(plan_envs),
-            )
+            .service(job)
+            .service(start_job)
+            .service(plan_envs)
     })
     .bind(("127.0.0.1", port))?
     .run();
@@ -119,11 +108,10 @@ pub fn create(
                     if let Some(message) = maybe_message {
                         match message {
                             interactive_protocol::Message::PlanDescription(strategies) => {
-                                let mut data = job_data_comm.lock().unwrap();
-                                data.strategies = strategies;
+                                let mut data = app_data_comm.lock().unwrap();
 
-                                app_data_comm.lock().unwrap().state =
-                                    AppState::WaitingForPlanApproval;
+                                data.strategies = strategies;
+                                data.state = AppState::WaitingForPlanApproval;
                             }
                             _ => (),
                         }
@@ -150,8 +138,8 @@ pub fn create(
 
                                 app_data.initial_envs = arc;
                                 app_data.state = AppState::WaitingForPlanEnv
-                            },
-                            _ => ()
+                            }
+                            _ => (),
                         }
                     }
                 }
@@ -171,7 +159,6 @@ pub fn create(
                                     );
                                     continue;
                                 }
-
                             }
                             _ => (),
                         };
