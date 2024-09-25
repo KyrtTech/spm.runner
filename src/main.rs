@@ -10,6 +10,9 @@ use spm_runner::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "actix_web=debug,actix_server=info");
+    env_logger::init();
+
     let registry_config = RegistryConfig::default().update_from_env();
 
     println!("Using registry config {:?}", registry_config);
