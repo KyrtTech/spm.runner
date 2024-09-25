@@ -6,6 +6,8 @@ use actix_web::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::interactive_protocol;
+
 struct JobData {
     strategies: String,
 }
@@ -39,7 +41,10 @@ async fn start_job(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
     let message = match app_data.state {
         AppState::GettingPlan => "plan not found",
         AppState::WaitingForPlanApproval => {
-            let _ = app_data.sender.send("start job".to_string()).await;
+            let _ = app_data
+                .sender
+                .send(interactive_protocol::START_JOB.to_string())
+                .await;
             "started"
         }
         AppState::WaitingForStrategyApproval(_) => "already started",
@@ -96,22 +101,20 @@ pub fn create(
 
                         app_data_comm.lock().unwrap().state = AppState::WaitingForPlanApproval;
                     }
-                },
+                }
                 AppState::WaitingForPlanApproval => {
                     let should_start = internal_rx.recv().await;
 
-                    println!("{:?}", should_start);
-
                     if let Some(should_start) = should_start {
-                        if should_start == "start job" {
-                            let _ = sender.send("run plan".to_string()).await;
+                        if should_start == interactive_protocol::START_JOB {
+                            let _ = sender.send(interactive_protocol::START_JOB.to_string()).await;
 
                             app_data_comm.lock().unwrap().state =
                                 AppState::WaitingForStrategyApproval(0);
                         }
                     }
-                },
-                AppState::WaitingForStrategyApproval(_index) => {},
+                }
+                AppState::WaitingForStrategyApproval(_index) => {}
                 AppState::RunningStrategy(_) => todo!(),
             }
         }

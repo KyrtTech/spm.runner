@@ -14,6 +14,7 @@ use tempfile::{NamedTempFile, TempDir};
 use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 use crate::{
+    interactive_protocol,
     optional_params::UriEntry,
     registry_api::install::{find_install_strategy, PlanInstallStrategyResponse},
 };
@@ -165,7 +166,11 @@ pub struct Install<'a, W: Write> {
 }
 
 impl<'a, W: Write> Install<'a, W> {
-    pub fn new(app_config: AppConfig<'a, 'a>, registry: &'a RegistryConfig, writer: &'a mut W) -> Self {
+    pub fn new(
+        app_config: AppConfig<'a, 'a>,
+        registry: &'a RegistryConfig,
+        writer: &'a mut W,
+    ) -> Self {
         Install {
             app_config,
             registry_config: registry,
@@ -280,10 +285,17 @@ impl<'a, W: Write> Install<'a, W> {
         //  and wait for a response from the user
         if self.app_config.interactive() {
             if let Some(comm) = self.app_config.comm() {
-                let _ = comm.sender().send(serde_json::to_string(&strategies).unwrap()).await;
-                let should_continue = comm.receiver().recv().await;
+                let _ = comm
+                    .sender()
+                    .send(serde_json::to_string(&strategies).unwrap())
+                    .await;
+                loop {
+                    let should_continue = comm.receiver().recv().await;
 
-                println!("{:?}", should_continue);
+                    if should_continue == Some(interactive_protocol::START_JOB.to_string()) {
+                        break;
+                    }
+                }
             }
         }
 
