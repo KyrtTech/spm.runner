@@ -120,7 +120,26 @@ pub fn create(
                         }
                     }
                 }
-                AppState::GettingStrategyEnv(index) => {}
+                AppState::GettingStrategyEnv(index) => {
+                    let maybe_message = receiver.recv().await;
+
+                    if let Some(message) = maybe_message {
+                        match message {
+                            interactive_protocol::Message::StrategyEnv(received_index, arc) => {
+                                if index != received_index {
+                                    eprintln!(
+                                        "Strategy indexes do not match current: {} recv: {}",
+                                        index, received_index
+                                    );
+                                    continue;
+                                }
+
+                                println!("Env vars {:?}", arc);
+                            }
+                            _ => (),
+                        };
+                    }
+                }
                 AppState::WaitingForStrategyApproval(_index) => {}
                 AppState::RunningStrategy(_) => todo!(),
             }

@@ -5,6 +5,7 @@ use std::{
     os::unix::fs::PermissionsExt,
     path::Path,
     process::{Command, Stdio},
+    sync::Arc,
 };
 
 use heck::ToShoutySnakeCase;
@@ -283,7 +284,20 @@ impl<'a, W: Write> Install<'a, W> {
         }
     }
 
-    async fn communicate_strategy_env(&mut self, index: u16, envs: &HashMap<String, String>) {}
+    async fn communicate_strategy_env(&mut self, index: u16, envs: &HashMap<String, String>) {
+        if !self.app_config.interactive() {
+            return;
+        }
+
+        let data = Arc::new(envs.clone());
+
+        if let Some(comm) = self.app_config.comm() {
+            let _ = comm
+                .sender()
+                .send(interactive_protocol::Message::StrategyEnv(index, data))
+                .await;
+        }
+    }
 
     pub async fn run(mut self, args: RunArguments<'_>) -> anyhow::Result<HashMap<String, String>> {
         let mut strategies = vec![];
@@ -345,10 +359,9 @@ impl<'a, W: Write> Install<'a, W> {
 
             save_env_vars(&env_vars, index);
 
-            let mut env_vars_with_user = env_vars.clone();
+            self.communicate_strategy_env(index, &env_vars).await;
 
-            self.communicate_strategy_env(index, &env_vars_with_user)
-                .await;
+            let mut env_vars_with_user = env_vars.clone();
 
             //  parse env user params
             if let Some(strategy_params) = &args.user_params.get(strategy.uri()) {
