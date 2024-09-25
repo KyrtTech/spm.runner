@@ -16,13 +16,18 @@ struct JobData {
 enum AppState {
     GettingPlan,
     WaitingForPlanApproval,
+    GettingStrategyEnv(u16),
     WaitingForStrategyApproval(u16),
     RunningStrategy(u16),
 }
 
+#[derive(Eq, PartialEq)]
+enum InternalMessage {
+    JobApproved,
+}
 struct AppData {
     state: AppState,
-    sender: Sender<String>,
+    sender: Sender<InternalMessage>,
 }
 
 #[get("/job")]
@@ -41,14 +46,10 @@ async fn start_job(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
     let message = match app_data.state {
         AppState::GettingPlan => "plan not found",
         AppState::WaitingForPlanApproval => {
-            let _ = app_data
-                .sender
-                .send(interactive_protocol::START_JOB.to_string())
-                .await;
+            let _ = app_data.sender.send(InternalMessage::JobApproved).await;
             "started"
         }
-        AppState::WaitingForStrategyApproval(_) => "already started",
-        AppState::RunningStrategy(_) => "already started",
+        _ => "already started",
     };
 
     HttpResponse::Ok()
@@ -58,10 +59,10 @@ async fn start_job(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
 
 pub fn create(
     port: u16,
-    sender: Sender<String>,
-    mut receiver: Receiver<String>,
+    sender: Sender<interactive_protocol::Message>,
+    mut receiver: Receiver<interactive_protocol::Message>,
 ) -> anyhow::Result<Server> {
-    let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<String>(1024);
+    let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<InternalMessage>(32);
 
     let job_data = Arc::new(Mutex::new(JobData {
         strategies: "[]".to_string(),
@@ -93,27 +94,33 @@ pub fn create(
 
             match app_state {
                 AppState::GettingPlan => {
-                    let strategy = receiver.recv().await;
+                    let maybe_message = receiver.recv().await;
 
-                    if let Some(strategies) = strategy {
-                        let mut data = job_data_comm.lock().unwrap();
-                        data.strategies = strategies;
+                    if let Some(message) = maybe_message {
+                        match message {
+                            interactive_protocol::Message::PlanDescription(strategies) => {
+                                let mut data = job_data_comm.lock().unwrap();
+                                data.strategies = strategies;
 
-                        app_data_comm.lock().unwrap().state = AppState::WaitingForPlanApproval;
-                    }
-                }
-                AppState::WaitingForPlanApproval => {
-                    let should_start = internal_rx.recv().await;
-
-                    if let Some(should_start) = should_start {
-                        if should_start == interactive_protocol::START_JOB {
-                            let _ = sender.send(interactive_protocol::START_JOB.to_string()).await;
-
-                            app_data_comm.lock().unwrap().state =
-                                AppState::WaitingForStrategyApproval(0);
+                                app_data_comm.lock().unwrap().state =
+                                    AppState::WaitingForPlanApproval;
+                            }
+                            _ => (),
                         }
                     }
                 }
+                AppState::WaitingForPlanApproval => {
+                    let maybe_message = internal_rx.recv().await;
+
+                    if let Some(should_start) = maybe_message {
+                        if should_start == InternalMessage::JobApproved {
+                            let _ = sender.send(interactive_protocol::Message::StartJob).await;
+
+                            app_data_comm.lock().unwrap().state = AppState::GettingStrategyEnv(0);
+                        }
+                    }
+                }
+                AppState::GettingStrategyEnv(index) => {}
                 AppState::WaitingForStrategyApproval(_index) => {}
                 AppState::RunningStrategy(_) => todo!(),
             }

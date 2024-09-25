@@ -5,6 +5,7 @@ use spm_runner::{
     cli,
     commands::{self, install::RunArguments},
     config::{AppConfig, RegistryConfig},
+    interactive_protocol,
     optional_params, web_server,
 };
 
@@ -34,7 +35,8 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let params = optional_params::load_optional_params(&user_params);
 
-            let mut app_config = AppConfig::new(&env, &project, dry, interactive, min_specs, verbose);
+            let mut app_config =
+                AppConfig::new(&env, &project, dry, interactive, min_specs, verbose);
 
             let run_args = RunArguments {
                 application: &application,
@@ -45,8 +47,8 @@ async fn main() -> anyhow::Result<()> {
             let writer = &mut stdout();
 
             if interactive == true {
-                let (server_tx, mut server_rx) = mpsc::channel::<String>(2048);
-                let (client_tx, client_rx) = mpsc::channel::<String>(2048);
+                let (server_tx, mut server_rx) = mpsc::channel::<interactive_protocol::Message>(32);
+                let (client_tx, client_rx) = mpsc::channel::<interactive_protocol::Message>(32);
 
                 let web_server = match web_server::init::create(port, server_tx, client_rx) {
                     Ok(web) => web,
@@ -61,7 +63,9 @@ async fn main() -> anyhow::Result<()> {
                 let install = commands::install::Install::new(app_config, &registry_config, writer);
                 let _ = tokio::join!(install.run(run_args), web_server);
             } else {
-                let _ = commands::install::Install::new(app_config, &registry_config, writer).run(run_args).await;
+                let _ = commands::install::Install::new(app_config, &registry_config, writer)
+                    .run(run_args)
+                    .await;
             }
         }
         cli::Commands::Remove {

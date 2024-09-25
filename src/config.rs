@@ -2,6 +2,8 @@ use reqwest::Url;
 use std::env;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::interactive_protocol;
+
 #[derive(Debug)]
 pub struct RegistryConfig {
     url: String,
@@ -38,16 +40,16 @@ impl RegistryConfig {
 }
 
 pub struct Comm<'a> {
-    sender: Sender<String>,
-    receiver: &'a mut Receiver<String>,
+    sender: Sender<interactive_protocol::Message>,
+    receiver: &'a mut Receiver<interactive_protocol::Message>,
 }
 
 impl<'a> Comm<'a> {
-    pub fn sender(&self) -> &Sender<String> {
+    pub fn sender(&self) -> &Sender<interactive_protocol::Message> {
         &self.sender
     }
 
-    pub fn receiver(&mut self) -> &mut Receiver<String> {
+    pub fn receiver(&mut self) -> &mut Receiver<interactive_protocol::Message> {
         self.receiver
     }
 }
@@ -106,7 +108,11 @@ impl<'a, 'b> AppConfig<'a, 'b> {
         self.verbose
     }
 
-    pub fn set_channels(&mut self, sender: Sender<String>, receiver: &'b mut Receiver<String>) {
+    pub fn set_channels(
+        &mut self,
+        sender: Sender<interactive_protocol::Message>,
+        receiver: &'b mut Receiver<interactive_protocol::Message>,
+    ) {
         self.comm = Some(Comm { receiver, sender });
     }
 

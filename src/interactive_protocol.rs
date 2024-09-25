@@ -1,1 +1,7 @@
-pub const START_JOB: &'static str = "start plan";
+use std::collections::HashMap;
+
+pub enum Message {
+    PlanDescription(String),
+    StartJob,
+    StrategyEnv(HashMap<String, String>)
+}

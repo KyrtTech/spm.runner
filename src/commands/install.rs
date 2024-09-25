@@ -263,18 +263,27 @@ impl<'a, W: Write> Install<'a, W> {
             if let Some(comm) = self.app_config.comm() {
                 let _ = comm
                     .sender()
-                    .send(serde_json::to_string(&strategies).unwrap())
+                    .send(interactive_protocol::Message::PlanDescription(
+                        serde_json::to_string(&strategies).unwrap(),
+                    ))
                     .await;
                 loop {
-                    let should_continue = comm.receiver().recv().await;
+                    let message = comm.receiver().recv().await;
 
-                    if should_continue == Some(interactive_protocol::START_JOB.to_string()) {
-                        break;
+                    if let Some(message) = message {
+                        match message {
+                            interactive_protocol::Message::StartJob => return,
+                            _ => continue,
+                        }
+                    } else {
+                        std::process::exit(2);
                     }
                 }
             }
         }
     }
+
+    async fn communicate_strategy_env(&mut self, index: u16, envs: &HashMap<String, String>) {}
 
     pub async fn run(mut self, args: RunArguments<'_>) -> anyhow::Result<HashMap<String, String>> {
         let mut strategies = vec![];
@@ -337,6 +346,9 @@ impl<'a, W: Write> Install<'a, W> {
             save_env_vars(&env_vars, index);
 
             let mut env_vars_with_user = env_vars.clone();
+
+            self.communicate_strategy_env(index, &env_vars_with_user)
+                .await;
 
             //  parse env user params
             if let Some(strategy_params) = &args.user_params.get(strategy.uri()) {
