@@ -284,6 +284,35 @@ impl<'a, W: Write> Install<'a, W> {
         }
     }
 
+    async fn communicate_start_env(
+        &mut self,
+        envs: &HashMap<String, String>,
+    ) -> HashMap<String, String> {
+        if !self.app_config.interactive() {
+            return HashMap::new();
+        }
+
+        let data = Arc::new(envs.clone());
+
+        if let Some(comm) = self.app_config.comm() {
+            let _ = comm
+                .sender()
+                .send(interactive_protocol::Message::PlanEnvs(data))
+                .await;
+
+            let maybe_message = comm.receiver().recv().await;
+
+            if let Some(message) = maybe_message {
+                match message {
+                    interactive_protocol::Message::PlanEnvsResponse(arc) => return (*arc).clone(),
+                    _ => (),
+                }
+            }
+        }
+
+        HashMap::new()
+    }
+
     async fn communicate_strategy_env(&mut self, index: u16, envs: &HashMap<String, String>) {
         if !self.app_config.interactive() {
             return;
@@ -325,6 +354,9 @@ impl<'a, W: Write> Install<'a, W> {
         //  want to pass this to the web server
         //  and wait for a response from the user
         self.communicate_plan(&strategies).await;
+
+        //  send default envs
+        self.communicate_start_env(&env_vars).await;
 
         if self.app_config.dry_run() {
             let _ = writeln!(

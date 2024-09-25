@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use actix_web::{
     dev::Server, get, http::header::ContentType, patch, web, App, HttpResponse, HttpServer,
@@ -16,6 +19,8 @@ struct JobData {
 enum AppState {
     GettingPlan,
     WaitingForPlanApproval,
+    GettingPlanEnv,
+    WaitingForPlanEnv,
     GettingStrategyEnv(u16),
     WaitingForStrategyApproval(u16),
     RunningStrategy(u16),
@@ -28,6 +33,7 @@ enum InternalMessage {
 struct AppData {
     state: AppState,
     sender: Sender<InternalMessage>,
+    initial_envs: Arc<HashMap<String, String>>,
 }
 
 #[get("/job")]
@@ -57,6 +63,18 @@ async fn start_job(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
         .body(message)
 }
 
+#[get("/envs")]
+async fn plan_envs(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
+    let serialized = match serde_json::to_string(&*app_data.lock().unwrap().initial_envs) {
+        Ok(val) => val,
+        Err(_) => "{}".to_string(),
+    };
+
+    HttpResponse::Ok()
+        .content_type(ContentType::json())
+        .body(serialized)
+}
+
 pub fn create(
     port: u16,
     sender: Sender<interactive_protocol::Message>,
@@ -72,6 +90,7 @@ pub fn create(
     let app_data = Arc::new(Mutex::new(AppData {
         sender: internal_tx,
         state: AppState::GettingPlan,
+        initial_envs: Arc::new(HashMap::new()),
     }));
     let app_data_comm = app_data.clone();
 
@@ -82,7 +101,8 @@ pub fn create(
                 web::scope("")
                     .app_data(web::Data::new(job_data.clone()))
                     .service(job)
-                    .service(start_job),
+                    .service(start_job)
+                    .service(plan_envs),
             )
     })
     .bind(("127.0.0.1", port))?
@@ -116,9 +136,27 @@ pub fn create(
                         if should_start == InternalMessage::JobApproved {
                             let _ = sender.send(interactive_protocol::Message::StartJob).await;
 
-                            app_data_comm.lock().unwrap().state = AppState::GettingStrategyEnv(0);
+                            app_data_comm.lock().unwrap().state = AppState::GettingPlanEnv;
                         }
                     }
+                }
+                AppState::GettingPlanEnv => {
+                    let maybe_message = receiver.recv().await;
+
+                    if let Some(message) = maybe_message {
+                        match message {
+                            interactive_protocol::Message::PlanEnvs(arc) => {
+                                let mut app_data = app_data_comm.lock().unwrap();
+
+                                app_data.initial_envs = arc;
+                                app_data.state = AppState::WaitingForPlanEnv
+                            },
+                            _ => ()
+                        }
+                    }
+                }
+                AppState::WaitingForPlanEnv => {
+                    app_data_comm.lock().unwrap().state = AppState::GettingStrategyEnv(0)
                 }
                 AppState::GettingStrategyEnv(index) => {
                     let maybe_message = receiver.recv().await;
@@ -134,7 +172,6 @@ pub fn create(
                                     continue;
                                 }
 
-                                println!("Env vars {:?}", arc);
                             }
                             _ => (),
                         };
