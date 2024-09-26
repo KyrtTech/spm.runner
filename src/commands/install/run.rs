@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs::{self, File},
+    fs,
     io::Write,
     os::unix::fs::PermissionsExt,
     path::Path,
@@ -15,11 +15,11 @@ use crate::{config::AppConfig, defaults};
 use crate::{config::RegistryConfig, optional_params::UserOptionalParams};
 use crate::{
     interactive_protocol,
-    optional_params::UriEntry,
     registry_api::install::{find_install_strategy, PlanInstallStrategyResponse},
 };
 
-use super::file::{download_files, download_scripts};
+use super::super::file::{download_files, download_scripts};
+use super::vars;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct InstallStrategyOutput {
@@ -59,98 +59,6 @@ fn consolidate_script_output(
     consolidate.push(new_data);
 
     Ok(())
-}
-
-fn save_env_vars(env: &HashMap<String, String>, index: u16) {
-    if let Ok(serialized) = serde_json::to_string(env) {
-        if let Ok(mut file) = File::create(format!(
-            "{}/{}.env.json",
-            defaults::OUTPUT_FOLDER,
-            index.to_string()
-        )) {
-            let _ = file.write_all(serialized.as_bytes());
-        }
-    }
-}
-
-fn add_env_user_params_for_strategy(
-    strategy_params: &HashMap<String, UriEntry>,
-    env: &mut HashMap<String, String>,
-) {
-    strategy_params.keys().into_iter().for_each(|key| {
-        let param = match strategy_params.get(key) {
-            Some(param) => param,
-            None => {
-                eprintln!("Could not get user param {}", key);
-                return;
-            }
-        };
-
-        if param.is_file() {
-            return;
-        }
-
-        let val = param.payload();
-
-        let fragments = key.split("/").collect::<Vec<&str>>();
-        let name = fragments.last().unwrap_or(&"");
-
-        match param.is_reference() {
-            true => {
-                let env_name = match val.split("/").collect::<Vec<&str>>().last() {
-                    Some(referenced_env) => referenced_env.to_string().to_shouty_snake_case(),
-                    None => return,
-                };
-
-                match env.get(&env_name) {
-                    Some(env_var) => {
-                        env.insert(name.to_string().to_shouty_snake_case(), env_var.to_string());
-                        ()
-                    }
-                    None => {
-                        eprintln!("Could not get env var {}", env_name);
-                        ()
-                    }
-                }
-            }
-            false => {
-                env.insert(name.to_string().to_shouty_snake_case(), val);
-                ()
-            }
-        }
-    })
-}
-
-fn move_file_user_params_for_strategy(
-    strategy_params: &HashMap<String, UriEntry>,
-) -> HashMap<String, NamedTempFile> {
-    let mut ret: HashMap<String, NamedTempFile> = HashMap::new();
-
-    strategy_params.keys().into_iter().for_each(|key| {
-        let param = match strategy_params.get(key) {
-            Some(param) => param,
-            None => {
-                eprintln!("Could not get user param {}", key);
-                return;
-            }
-        };
-
-        if param.is_file() == false {
-            return;
-        }
-
-        let fragments = key.split("/").collect::<Vec<&str>>();
-        let name = fragments.last().unwrap_or(&"");
-        let some_file = NamedTempFile::new();
-
-        if let Ok(file) = some_file {
-            param.write_to_file(file.path().to_str().unwrap_or_default());
-
-            ret.insert(name.to_string().to_shouty_snake_case(), file);
-        }
-    });
-
-    return ret;
 }
 
 pub struct RunArguments<'a> {
@@ -387,7 +295,7 @@ impl<'a, W: Write> Install<'a, W> {
                 env_vars.insert(String::from("DOWNLOAD_URL"), download_url.clone());
             }
 
-            save_env_vars(&env_vars, index);
+            vars::save_env_vars(&env_vars, index);
 
             self.communicate_strategy_env(index, &env_vars).await;
 
@@ -395,9 +303,9 @@ impl<'a, W: Write> Install<'a, W> {
 
             //  parse env user params
             if let Some(strategy_params) = &args.user_params.get(strategy.uri()) {
-                add_env_user_params_for_strategy(&strategy_params, &mut env_vars_with_user);
+                vars::add_env_user_params_for_strategy(&strategy_params, &mut env_vars_with_user);
 
-                let user_params = move_file_user_params_for_strategy(&strategy_params);
+                let user_params = vars::move_file_user_params_for_strategy(&strategy_params);
 
                 //  will move temp files in this vec
                 //  we only send the path, so the file
@@ -457,7 +365,7 @@ impl<'a, W: Write> Install<'a, W> {
             serde_json::to_string_pretty(&env_vars).unwrap_or_default()
         );
 
-        save_env_vars(&env_vars, index);
+        vars::save_env_vars(&env_vars, index);
 
         Ok(env_vars)
     }
