@@ -11,7 +11,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::interactive_protocol;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum AppState {
     GettingPlan,
     WaitingForPlanApproval,
@@ -36,12 +36,16 @@ struct AppData {
 }
 
 #[get("/job")]
-async fn job(job_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
-    let job_data = job_data.lock().unwrap();
+async fn job(data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
+    let data = data.lock().unwrap();
+
+    if data.state != AppState::WaitingForPlanApproval {
+        return HttpResponse::Conflict().finish();
+    }
 
     HttpResponse::Ok()
         .content_type(ContentType::json())
-        .body(job_data.strategies.clone())
+        .body(data.strategies.clone())
 }
 
 #[patch("/start-job")]
@@ -64,6 +68,10 @@ async fn start_job(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
 
 #[get("/envs")]
 async fn plan_envs(app_data: web::Data<Arc<Mutex<AppData>>>) -> impl Responder {
+    if app_data.lock().unwrap().state != AppState::WaitingForPlanEnv {
+        return HttpResponse::Conflict().finish();
+    }
+
     let serialized = match serde_json::to_string(&app_data.lock().unwrap().initial_envs) {
         Ok(val) => val,
         Err(_) => "{}".to_string(),
