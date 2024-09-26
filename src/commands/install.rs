@@ -5,7 +5,6 @@ use std::{
     os::unix::fs::PermissionsExt,
     path::Path,
     process::{Command, Stdio},
-    sync::Arc,
 };
 
 use heck::ToShoutySnakeCase;
@@ -292,19 +291,17 @@ impl<'a, W: Write> Install<'a, W> {
             return HashMap::new();
         }
 
-        let data = Arc::new(envs.clone());
-
         if let Some(comm) = self.app_config.comm() {
             let _ = comm
                 .sender()
-                .send(interactive_protocol::Message::PlanEnvs(data))
+                .send(interactive_protocol::Message::PlanEnvs(envs.clone()))
                 .await;
 
             let maybe_message = comm.receiver().recv().await;
 
             if let Some(message) = maybe_message {
                 match message {
-                    interactive_protocol::Message::PlanEnvsResponse(arc) => return (*arc).clone(),
+                    interactive_protocol::Message::PlanEnvsResponse(hash) => return hash,
                     _ => (),
                 }
             }
@@ -318,12 +315,13 @@ impl<'a, W: Write> Install<'a, W> {
             return;
         }
 
-        let data = Arc::new(envs.clone());
-
         if let Some(comm) = self.app_config.comm() {
             let _ = comm
                 .sender()
-                .send(interactive_protocol::Message::StrategyEnv(index, data))
+                .send(interactive_protocol::Message::StrategyEnv(
+                    index,
+                    envs.clone(),
+                ))
                 .await;
         }
     }
@@ -356,7 +354,7 @@ impl<'a, W: Write> Install<'a, W> {
         self.communicate_plan(&strategies).await;
 
         //  send default envs
-        self.communicate_start_env(&env_vars).await;
+        env_vars = self.communicate_start_env(&env_vars).await;
 
         if self.app_config.dry_run() {
             let _ = writeln!(
