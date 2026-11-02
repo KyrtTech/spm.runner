@@ -72,8 +72,6 @@ The scripts the runner executes come from the install strategies, not from the r
 |----------------------|---------|
 | `SPM_CONFIG_REGISTRY` | Base URL of the registry API, **including the `/v1/` prefix and the trailing slash**, e.g. `https://registry.the-spm.org/v1/` or `http://127.0.0.1:3000/v1/`. |
 
-Always set `SPM_CONFIG_REGISTRY`. The built-in default (`https://registry.the-spm.org`) has no `/v1/` path, so plan requests to it return 404. The trailing slash matters too: endpoint names are resolved relative to this URL.
-
 ## Commands
 
 ### `install`
