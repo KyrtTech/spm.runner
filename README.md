@@ -2,10 +2,14 @@
 
 `spm_runner` is the part of SPM that actually installs things. You tell it *what* you want (a service such as `Wordpress` or `Kutt`) and *where* you want it (an infrastructure provider such as `Hetzner` or `AWS`). It asks the registry for an install plan and runs every install strategy in that plan, in order. The outputs of one strategy (an SSH key, a database URL, ...) are passed on as inputs to the next.
 
+> [!WARNING]
+> **The runner downloads scripts from the internet and executes them on your machine, with your user's permissions and your cloud credentials.** Those scripts create real, billable infrastructure. Only point the runner at a registry you trust, review the plan with `--dry` before installing, and read [Security considerations](#security-considerations) first.
+
 ## Table of contents
 
 - [Where the runner fits](#where-the-runner-fits)
 - [How an install works](#how-an-install-works)
+- [Security considerations](#security-considerations)
 - [Building](#building)
 - [Configuration](#configuration)
 - [Commands](#commands)
@@ -53,6 +57,47 @@ Running `spm_runner install --application Wordpress --infra Hetzner`:
    - read the JSON the script wrote to `SPM_OUTPUT_PATH` (see [Writing scripts](#writing-scripts-for-the-runner)).
 4. **Chain outputs.** Each output parameter is added to the environment of every later strategy, in `SHOUTY_SNAKE_CASE`. For example, `PHP83Hetzner` outputs `sshConnectionString` and `sshKey`, and `WordpressHetzner` receives them as `SSH_CONNECTION_STRING` and `SSH_KEY`. This is how the knowledge domain's "strategy A produces a parameter that strategy B requires" becomes a working pipeline.
 5. **Persist state.** The environment before each step, and the final one, is saved to `.output/<step>.env.json`. SSH keys produced by a strategy are copied to `.output/<step>.pem` so they outlive the temporary directory.
+
+## Security considerations
+
+The runner is a remote code execution tool by design: what it runs is decided by the registry and by whoever hosts the install scripts, not by the runner. Treat running `spm_runner install` like piping a script from the internet into your shell.
+
+### What the runner trusts
+
+- **The registry decides what runs.** The install plan, including every script and support-file URL, comes from `SPM_CONFIG_REGISTRY`. Anyone who controls the registry, or its underlying knowledge domain and Neo4j data, controls the code executed on your machine.
+- **Script hosts decide what the code is.** Scripts and support files are fetched from the URLs in the plan, currently `raw.githubusercontent.com/KyrtTech/spm.install_strategies`. Whoever can change those files changes what the runner executes.
+- **There is no integrity check.** Downloads are not verified against a checksum or signature. The only protection is TLS, and only when the URLs use `https`. Nothing stops a registry from pointing at an `http` URL, and `SPM_CONFIG_REGISTRY` itself may be `http` (as in local development).
+
+### What a script can do
+
+- **Scripts run as your user.** No sandbox, container or separate account is used. A script can read, modify or delete anything your user can.
+- **Scripts inherit your whole environment**, not just the SPM variables: cloud credentials (`AWS_*`, `HCLOUD_TOKEN`, ...), tokens, and `PATH`. Strategies rely on this to provision infrastructure, so every script in a plan can use those credentials.
+- **Scripts create real resources and costs.** Installs create servers, databases and networks on your provider account. A failed or interrupted plan can leave resources running. Use `remove` or the provider console to clean up.
+
+### Secrets on disk and in logs
+
+- **`.output/` holds secrets in plain text.** `.output/<step>.env.json` contains every variable passed between strategies, including passwords, connection strings and SSH details. `.output/<step>.pem` holds the SSH private keys created by strategies. The files get default permissions from your umask.
+- **`.output/` is wiped at the start of every `install`.** Copy anything you need to keep, such as SSH keys for created servers, before running another install from the same directory.
+- **`--verbose` prints the full environment**, including secrets, to the terminal. Avoid it in shared terminals and CI logs.
+- `.output/` and `.user_params/` are git-ignored; keep it that way.
+
+### Interactive mode exposes a local control API
+
+`--interactive` starts an HTTP server on `127.0.0.1:<port>` with **no authentication and CORS allowing any origin**. While it runs, any web page open in your browser can read the plan (`GET /job`), approve it (`PATCH /start-job`), and replace the environment variables for the install (`PATCH /envs`). Only use interactive mode on a trusted machine, close untrusted browser tabs while a job is pending, and don't change the port binding to a non-loopback address.
+
+### Known limitations
+
+- **Support-file paths are not fully contained.** The runner rejects absolute `localPath` values that point outside its temporary directory. It does not normalise `..`, so a value like `../file` is accepted and written outside it.
+- **The temporary working directory is removed when a strategy finishes**, but files a script writes elsewhere (including through the gap above) are not cleaned up.
+
+### Recommended practice
+
+1. **Use a registry you control or trust.** Always use `https` for `SPM_CONFIG_REGISTRY` outside local development.
+2. **Review before running.** Run with `--dry` first to see every strategy, script URL and support file in the plan, then read the scripts.
+3. **Limit credentials.** Run with a dedicated, least-privilege cloud account or project, and short-lived credentials where the provider supports them.
+4. **Isolate the runner.** For anything beyond local experiments, run it in a disposable VM or container, or in CI, rather than on a workstation holding other secrets.
+5. **Protect the outputs.** Restrict `.output/` (for example `chmod 700 .output`), move SSH keys to a secure location, and delete the folder when you're done.
+6. **Report vulnerabilities privately** through [GitHub security advisories](https://github.com/KyrtTech/spm.runner/security/advisories/new) rather than a public issue.
 
 ## Building
 
